@@ -36,9 +36,17 @@ export default function CategoryPage() {
       <h1 className="font-display text-2xl sm:text-3xl font-bold text-brand-magenta">
         {category?.name || 'Products'}
       </h1>
-      {category?.description && <p className="text-brand-ink/60 text-sm mt-1">{category.description}</p>}
+      {category?.description && (
+        <p className="text-brand-ink/60 text-sm mt-1">{category.description}</p>
+      )}
 
-      <Filters activeSize={size} onSizeChange={setSize} sort={sort} onSortChange={setSort} />
+      <Filters
+        sizes={category?.sizes}
+        activeSize={size}
+        onSizeChange={setSize}
+        sort={sort}
+        onSortChange={setSort}
+      />
 
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">

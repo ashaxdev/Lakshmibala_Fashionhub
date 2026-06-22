@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { Plus, Trash2, Upload, Loader2, X } from 'lucide-react';
 
-const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size'];
+const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size','32','34','36','38','40','75','80','85','90','95','100'];
 
 function emptyVariant() {
   return { color: '', colorHex: '#E91E8C', images: [''], price: '', compareAtPrice: '', sizes: [{ size: 'M', stock: 0, sku: '' }] };
