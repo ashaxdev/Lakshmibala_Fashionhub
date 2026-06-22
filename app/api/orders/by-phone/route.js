@@ -56,7 +56,9 @@ export async function POST(req) {
       color: i.color,
       size: i.size,
       price: i.price,
-      qty: i.qty
+      qty: i.qty,
+      product: i.product ? String(i.product) : null,
+      isCombo: i.isCombo || false
     })),
     total: o.total,
     status: o.status,

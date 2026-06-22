@@ -8,7 +8,7 @@ const ReviewSchema = new mongoose.Schema(
     rating: { type: Number, required: true, min: 1, max: 5 },
     comment: { type: String, default: '' },
     images: [{ type: String }],
-    isApproved: { type: Boolean, default: true },
+    isApproved: { type: Boolean, default: false },  // ← was true
     isFeatured: { type: Boolean, default: false },
     isVerifiedPurchase: { type: Boolean, default: false } // true only when submitted from a delivered order
   },
