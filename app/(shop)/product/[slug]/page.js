@@ -244,7 +244,7 @@ export default function ProductPage() {
           </div>
 
           {/* Trust badges */}
-          <div className="grid grid-cols-3 gap-2 mt-5">
+          {/* <div className="grid grid-cols-3 gap-2 mt-5">
             {[
               [Truck, 'Free Delivery'],
               [RotateCcw, '7-Day Returns'],
@@ -255,7 +255,7 @@ export default function ProductPage() {
                 <p className="text-xs text-brand-ink/60 leading-tight">{label}</p>
               </div>
             ))}
-          </div>
+          </div> */}
 
           {/* Description */}
           {product.description && (

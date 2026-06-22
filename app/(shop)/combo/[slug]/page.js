@@ -93,7 +93,7 @@ export default async function ComboPage({ params }) {
       </div>
 
       {/* Trust + Policy section */}
-      <div className="mt-10 grid sm:grid-cols-3 gap-4">
+      {/* <div className="mt-10 grid sm:grid-cols-3 gap-4">
         <div className="border rounded-xl p-4 flex gap-3 items-start">
           <Truck size={20} className="text-brand-magenta shrink-0 mt-0.5" />
           <div>
@@ -115,7 +115,7 @@ export default async function ComboPage({ params }) {
             <p className="text-xs text-brand-ink/50 mt-0.5">Every piece is quality-checked before dispatch. What you see is what you get.</p>
           </div>
         </div>
-      </div>
+      </div> */}
 
       {/* Bottom reassurance */}
       <div className="mt-6 border-t pt-6 text-center">
