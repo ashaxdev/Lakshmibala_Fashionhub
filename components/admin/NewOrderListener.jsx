@@ -5,24 +5,41 @@ import { useEffect, useRef } from 'react';
 function playBeep() {
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
 
-  // 4 beeps, each 400ms apart
-  [0, 0.4, 0.8, 1.2].forEach((delay) => {
+  const notes = [523, 659, 784, 1047]; // C5 → E5 → G5 → C6 (ascending chime)
+
+  notes.forEach((freq, i) => {
+    const delay = i * 0.35;
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
+
+    // Add slight reverb feel with a second oscillator
+    const osc2 = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+
     osc.connect(gain);
     gain.connect(ctx.destination);
 
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+
+    // Main tone
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(880, ctx.currentTime + delay);
-
-    gain.gain.setValueAtTime(0.8, ctx.currentTime + delay);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.25);
-
+    osc.frequency.setValueAtTime(freq, ctx.currentTime + delay);
+    gain.gain.setValueAtTime(1.5, ctx.currentTime + delay);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.6);
     osc.start(ctx.currentTime + delay);
-    osc.stop(ctx.currentTime + delay + 0.25);
+    osc.stop(ctx.currentTime + delay + 0.6);
+
+    // Harmonic layer (octave below, softer)
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(freq / 2, ctx.currentTime + delay);
+    gain2.gain.setValueAtTime(0.6, ctx.currentTime + delay);
+    gain2.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + delay + 0.5);
+    osc2.start(ctx.currentTime + delay);
+    osc2.stop(ctx.currentTime + delay + 0.5);
   });
 }
-
 export default function NewOrderListener() {
   const prevCountRef = useRef(null);
 
