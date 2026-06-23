@@ -181,9 +181,9 @@ export default function CheckoutPage() {
             <label className="flex items-center gap-2 text-sm mb-2">
               <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} /> Pay Online (Cards/UPI/Netbanking)
             </label>
-            <label className="flex items-center gap-2 text-sm">
+            {/* <label className="flex items-center gap-2 text-sm">
               <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} /> Cash on Delivery
-            </label>
+            </label> */}
           </div>
 
           <button onClick={placeOrder} disabled={submitting} className="btn-primary w-full mt-4">
