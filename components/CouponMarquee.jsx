@@ -13,7 +13,7 @@ export default function CouponMarquee() {
       .catch(() => {});
   }, []);
 
-  const freeShippingItem = { type: 'freeshipping', minOrderValue: 1999 };
+  const freeShippingItem = { type: 'freeshipping', minOrderValue: 1199 };
 
   const allItems = [...coupons, freeShippingItem];
 
