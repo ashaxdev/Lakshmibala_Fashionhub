@@ -28,7 +28,7 @@ export default function Footer() {
           <h4 className="font-semibold mb-3">Get in touch</h4>
           <div className="flex gap-3 mb-3">
             
-             <a href="https://instagram.com/Lakshmibala_Clothing_Store"
+             <a href="https://instagram.com/lakshmibala_clothing "
               target="_blank"
               rel="noreferrer"
               className="bg-white/15 p-2.5 rounded-full hover:bg-white/25"

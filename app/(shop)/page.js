@@ -149,7 +149,7 @@ export default async function HomePage() {
       <ReelsSection reels={JSON.parse(JSON.stringify(reels))} />
 
       {/* Brand strip */}
-      <section className="bg-gradient-to-br from-brand-magenta to-brand-pink py-10 mt-4">
+      {/* <section className="bg-gradient-to-br from-brand-magenta to-brand-pink py-10 mt-4">
         <div className="max-w-3xl mx-auto text-center px-4">
           <h2 className="font-display text-2xl sm:text-3xl font-bold text-white mb-2">
             Sivakasi's own clothing store, now online
@@ -161,7 +161,7 @@ export default async function HomePage() {
             Shop Now
           </Link>
         </div>
-      </section>
+      </section> */}
 
     </div>
   );
