@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, X, Upload, Loader2 } from 'lucide-react';
+import { Plus, Trash2, X, Upload, Loader2, Pencil } from 'lucide-react';
 
 const emptyForm = { name: '', image: '', description: '', comboPrice: '', originalPrice: '', productIds: [] };
 
@@ -13,6 +13,7 @@ export default function AdminCombosPage() {
   const [showForm, setShowForm] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [preview, setPreview] = useState('');
+  const [editingId, setEditingId] = useState(null); // null = create mode, otherwise the combo _id being edited
   const fileRef = useRef();
 
   async function load() {
@@ -33,6 +34,29 @@ export default function AdminCombosPage() {
     setShowForm(false);
     setForm(emptyForm);
     setPreview('');
+    setEditingId(null);
+  }
+
+  function openCreateForm() {
+    setForm(emptyForm);
+    setPreview('');
+    setEditingId(null);
+    setShowForm(true);
+  }
+
+  function openEditForm(combo) {
+    setForm({
+      name: combo.name || '',
+      image: combo.image || '',
+      description: combo.description || '',
+      comboPrice: combo.comboPrice ?? '',
+      originalPrice: combo.originalPrice ?? '',
+      // products on a combo are typically stored as [{ product: id, ... }] — normalize to plain ids
+      productIds: (combo.products || []).map((p) => (typeof p.product === 'object' ? p.product?._id : p.product) || p._id || p),
+    });
+    setPreview(combo.image || '');
+    setEditingId(combo._id);
+    setShowForm(true);
   }
 
   async function handleFileChange(e) {
@@ -66,10 +90,20 @@ export default function AdminCombosPage() {
       originalPrice: Number(form.originalPrice) || 0,
       products: form.productIds.map((id) => ({ product: id })),
     };
-    const res = await fetch('/api/combos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+
+    const isEditing = Boolean(editingId);
+    const url = isEditing ? `/api/combos/${editingId}` : '/api/combos';
+    const method = isEditing ? 'PUT' : 'POST';
+
+    const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const data = await res.json();
-    if (res.ok) { toast.success('Combo created'); closeForm(); load(); }
-    else toast.error(data.error || 'Failed');
+    if (res.ok) {
+      toast.success(isEditing ? 'Combo updated' : 'Combo created');
+      closeForm();
+      load();
+    } else {
+      toast.error(data.error || 'Failed');
+    }
   }
 
   async function remove(id) {
@@ -82,7 +116,7 @@ export default function AdminCombosPage() {
     <div>
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-display text-2xl font-bold text-brand-magenta">Combo Offers</h1>
-        <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-1 text-sm">
+        <button onClick={openCreateForm} className="btn-primary flex items-center gap-1 text-sm">
           <Plus size={16} /> Add Combo
         </button>
       </div>
@@ -90,7 +124,7 @@ export default function AdminCombosPage() {
       {showForm && (
         <form onSubmit={submit} className="card-soft p-5 mb-6 space-y-3">
           <div className="flex justify-between">
-            <h2 className="font-semibold">New Combo</h2>
+            <h2 className="font-semibold">{editingId ? 'Edit Combo' : 'New Combo'}</h2>
             <button type="button" onClick={closeForm}><X size={18} /></button>
           </div>
 
@@ -126,7 +160,7 @@ export default function AdminCombosPage() {
             ))}
           </div>
           <button className="btn-primary text-sm" disabled={uploading}>
-            {uploading ? 'Uploading…' : 'Create'}
+            {uploading ? 'Uploading…' : editingId ? 'Save Changes' : 'Create'}
           </button>
         </form>
       )}
@@ -138,7 +172,14 @@ export default function AdminCombosPage() {
             <div className="p-3">
               <p className="font-medium text-sm">{c.name}</p>
               <p className="text-brand-magenta font-semibold text-sm">₹{c.comboPrice}</p>
-              <button onClick={() => remove(c._id)} className="text-brand-magenta mt-2"><Trash2 size={16} /></button>
+              <div className="flex items-center gap-3 mt-2">
+                <button onClick={() => openEditForm(c)} className="text-brand-ink/60 hover:text-brand-magenta" title="Edit">
+                  <Pencil size={16} />
+                </button>
+                <button onClick={() => remove(c._id)} className="text-brand-magenta" title="Delete">
+                  <Trash2 size={16} />
+                </button>
+              </div>
             </div>
           </div>
         ))}
