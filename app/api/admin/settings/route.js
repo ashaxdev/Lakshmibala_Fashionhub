@@ -18,3 +18,24 @@ export const PUT = requireAdmin(async (req) => {
   const settings = await Settings.findOneAndUpdate({ key: 'global' }, body, { new: true, upsert: true });
   return NextResponse.json({ settings });
 });
+
+
+export async function POST(req) {
+  try {
+    const { subtotal } = await req.json();
+ 
+    await dbConnect();
+    const settings = await Settings.findOne({ key: 'global' });
+    if (!settings) {
+      return NextResponse.json({ error: 'Settings not configured' }, { status: 500 });
+    }
+ 
+    const { shippingFee, freeShippingAbove } = settings;
+    const shippingCost = subtotal >= freeShippingAbove ? 0 : shippingFee;
+ 
+    return NextResponse.json({ shippingCost, freeShippingAbove, shippingFee });
+  } catch (err) {
+    console.error('Shipping calculate error:', err);
+    return NextResponse.json({ error: 'Could not calculate shipping' }, { status: 500 });
+  }
+}

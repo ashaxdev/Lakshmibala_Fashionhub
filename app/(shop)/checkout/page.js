@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Script from 'next/script';
 import toast from 'react-hot-toast';
@@ -19,8 +19,40 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [submitting, setSubmitting] = useState(false);
 
-  const shipping = subtotal - discount >= 999 ? 0 : 0;
-  const total = Math.round(subtotal - discount + shipping);
+  // Shipping state from settings API
+  const [shipping, setShipping] = useState(null);          // actual cost for this order
+  const [freeShippingAbove, setFreeShippingAbove] = useState(null); // for the badge
+  const [shippingLoading, setShippingLoading] = useState(false);
+
+  const discountedSubtotal = subtotal - discount;
+  const total = shipping !== null ? Math.round(discountedSubtotal + shipping) : null;
+
+  // Re-fetch whenever discounted subtotal changes (pincode not needed — settings-based)
+  const fetchShipping = useCallback(async () => {
+    setShippingLoading(true);
+    try {
+      const res = await fetch('/api/admin/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subtotal: discountedSubtotal })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setShipping(data.shippingCost);
+        setFreeShippingAbove(data.freeShippingAbove);
+      } else {
+        toast.error(data.error || 'Could not calculate shipping');
+      }
+    } catch {
+      toast.error('Could not calculate shipping');
+    } finally {
+      setShippingLoading(false);
+    }
+  }, [discountedSubtotal]);
+
+  useEffect(() => {
+    fetchShipping();
+  }, [fetchShipping]);
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -50,6 +82,10 @@ export default function CheckoutPage() {
     }
     if (items.length === 0) {
       toast.error('Your cart is empty');
+      return;
+    }
+    if (shipping === null) {
+      toast.error('Shipping is still being calculated, please wait');
       return;
     }
     setSubmitting(true);
@@ -128,67 +164,202 @@ export default function CheckoutPage() {
         }
         setSubmitting(false);
       }
-    } catch (e) {
+    } catch {
       toast.error('Something went wrong. Please try again.');
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
-      <h1 className="font-display text-2xl font-bold text-brand-magenta mb-6">Checkout</h1>
+      <h1 className="font-display text-xl sm:text-2xl font-bold text-brand-magenta mb-5 sm:mb-6">
+        Checkout
+      </h1>
 
-      <div className="grid sm:grid-cols-2 gap-8">
-        <div className="card-soft p-5 space-y-3">
-          <h2 className="font-semibold text-brand-ink mb-1">Shipping Details</h2>
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Full Name *" value={form.name} onChange={(e) => update('name', e.target.value)} />
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Phone Number *" value={form.phone} onChange={(e) => update('phone', e.target.value)} />
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Email (optional)" value={form.email} onChange={(e) => update('email', e.target.value)} />
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Address Line 1 *" value={form.line1} onChange={(e) => update('line1', e.target.value)} />
-          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Address Line 2" value={form.line2} onChange={(e) => update('line2', e.target.value)} />
+      {/* Free shipping nudge */}
+      {freeShippingAbove !== null && shipping !== null && shipping > 0 && (
+        <p className="text-xs text-brand-ink/60 bg-brand-magenta/5 border border-brand-magenta/15 rounded-lg px-3 py-2 mb-4">
+          Add {formatINR(freeShippingAbove - discountedSubtotal)} more to get <span className="font-semibold text-brand-green">free shipping</span>!
+        </p>
+      )}
+
+      <div className="flex flex-col gap-6 sm:grid sm:grid-cols-2 sm:gap-8">
+
+        {/* ── Shipping Details ── */}
+        <div className="card-soft p-4 sm:p-5 space-y-3">
+          <h2 className="font-semibold text-brand-ink mb-1 text-sm sm:text-base">Shipping Details</h2>
+
+          <input
+            className="w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+            placeholder="Full Name *"
+            autoComplete="name"
+            value={form.name}
+            onChange={(e) => update('name', e.target.value)}
+          />
+          <input
+            className="w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+            placeholder="Phone Number *"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            value={form.phone}
+            onChange={(e) => update('phone', e.target.value)}
+          />
+          <input
+            className="w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+            placeholder="Email (optional)"
+            type="email"
+            autoComplete="email"
+            value={form.email}
+            onChange={(e) => update('email', e.target.value)}
+          />
+          <input
+            className="w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+            placeholder="Address Line 1 *"
+            autoComplete="address-line1"
+            value={form.line1}
+            onChange={(e) => update('line1', e.target.value)}
+          />
+          <input
+            className="w-full border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+            placeholder="Address Line 2"
+            autoComplete="address-line2"
+            value={form.line2}
+            onChange={(e) => update('line2', e.target.value)}
+          />
           <div className="grid grid-cols-2 gap-3">
-            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="City *" value={form.city} onChange={(e) => update('city', e.target.value)} />
-            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="State" value={form.state} onChange={(e) => update('state', e.target.value)} />
+            <input
+              className="border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+              placeholder="City *"
+              autoComplete="address-level2"
+              value={form.city}
+              onChange={(e) => update('city', e.target.value)}
+            />
+            <input
+              className="border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+              placeholder="State"
+              autoComplete="address-level1"
+              value={form.state}
+              onChange={(e) => update('state', e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
-            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Pincode *" value={form.pincode} onChange={(e) => update('pincode', e.target.value)} />
-            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Landmark" value={form.landmark} onChange={(e) => update('landmark', e.target.value)} />
+            <input
+              className="border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+              placeholder="Pincode *"
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="postal-code"
+              value={form.pincode}
+              onChange={(e) => update('pincode', e.target.value)}
+            />
+            <input
+              className="border rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40"
+              placeholder="Landmark"
+              value={form.landmark}
+              onChange={(e) => update('landmark', e.target.value)}
+            />
           </div>
         </div>
 
-        <div>
-          <div className="card-soft p-5">
-            <h2 className="font-semibold text-brand-ink mb-3">Order Summary</h2>
-            {items.map((i, idx) => (
-              <div key={idx} className="flex justify-between text-sm py-1 text-brand-ink/70">
-                <span>{i.name} ({i.color}/{i.size}) x{i.qty}</span>
-                <span>{formatINR(i.price * i.qty)}</span>
-              </div>
-            ))}
-            <div className="flex gap-2 mt-3">
-              <input className="flex-1 border rounded-lg px-3 py-2 text-sm" placeholder="Coupon code" value={coupon} onChange={(e) => setCoupon(e.target.value)} />
-              <button onClick={applyCoupon} className="btn-outline px-4 text-sm">Apply</button>
+        {/* ── Right column ── */}
+        <div className="flex flex-col gap-4">
+
+          {/* Order Summary */}
+          <div className="card-soft p-4 sm:p-5">
+            <h2 className="font-semibold text-brand-ink mb-3 text-sm sm:text-base">Order Summary</h2>
+
+            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+              {items.map((i, idx) => (
+                <div key={idx} className="flex justify-between text-sm py-1 text-brand-ink/70 gap-2">
+                  <span className="truncate">{i.name} ({i.color}/{i.size}) ×{i.qty}</span>
+                  <span className="shrink-0">{formatINR(i.price * i.qty)}</span>
+                </div>
+              ))}
             </div>
+
+            {/* Coupon */}
+            <div className="flex gap-2 mt-3">
+              <input
+                className="flex-1 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-magenta/40 min-w-0"
+                placeholder="Coupon code"
+                value={coupon}
+                onChange={(e) => setCoupon(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && applyCoupon()}
+              />
+              <button onClick={applyCoupon} className="btn-outline px-4 text-sm shrink-0">Apply</button>
+            </div>
+
             <hr className="my-3" />
-            <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatINR(subtotal)}</span></div>
-            {discount > 0 && <div className="flex justify-between text-sm text-brand-green"><span>Discount</span><span>-{formatINR(discount)}</span></div>}
-            <div className="flex justify-between text-sm"><span>Shipping</span><span>{shipping === 0 ? 'Free' : formatINR(shipping)}</span></div>
-            <div className="flex justify-between font-bold text-lg mt-2"><span>Total</span><span className="text-brand-magenta">{formatINR(total)}</span></div>
+
+            {/* Price breakdown */}
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between">
+                <span className="text-brand-ink/70">Subtotal</span>
+                <span>{formatINR(subtotal)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-brand-green">
+                  <span>Discount</span>
+                  <span>−{formatINR(discount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-brand-ink/70">Shipping</span>
+                <span>
+                  {shippingLoading
+                    ? <span className="text-brand-ink/40">Calculating…</span>
+                    : shipping === 0
+                      ? <span className="text-brand-green font-medium">Free</span>
+                      : shipping !== null
+                        ? formatINR(shipping)
+                        : <span className="text-brand-ink/40">—</span>
+                  }
+                </span>
+              </div>
+            </div>
+
+            <div className="flex justify-between font-bold text-base sm:text-lg mt-3 pt-3 border-t">
+              <span>Total</span>
+              <span className="text-brand-magenta">
+                {total !== null ? formatINR(total) : '—'}
+              </span>
+            </div>
           </div>
 
-          <div className="card-soft p-5 mt-4">
-            <h2 className="font-semibold text-brand-ink mb-2">Payment Method</h2>
-            <label className="flex items-center gap-2 text-sm mb-2">
-              <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} /> Pay Online (Cards/UPI/Netbanking)
+          {/* Payment Method */}
+          <div className="card-soft p-4 sm:p-5">
+            <h2 className="font-semibold text-brand-ink mb-2 text-sm sm:text-base">Payment Method</h2>
+            <label className="flex items-center gap-3 text-sm cursor-pointer">
+              <input
+                type="radio"
+                checked={paymentMethod === 'razorpay'}
+                onChange={() => setPaymentMethod('razorpay')}
+                className="accent-brand-magenta w-4 h-4"
+              />
+              Pay Online (Cards / UPI / Netbanking)
             </label>
-            {/* <label className="flex items-center gap-2 text-sm">
-              <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} /> Cash on Delivery
+            {/* <label className="flex items-center gap-3 text-sm cursor-pointer mt-2">
+              <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="accent-brand-magenta w-4 h-4" />
+              Cash on Delivery
             </label> */}
           </div>
 
-          <button onClick={placeOrder} disabled={submitting} className="btn-primary w-full mt-4">
-            {submitting ? 'Placing Order...' : `Place Order - ${formatINR(total)}`}
+          {/* Place Order CTA */}
+          <button
+            onClick={placeOrder}
+            disabled={submitting || shippingLoading || shipping === null}
+            className="btn-primary w-full py-3 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {submitting
+              ? 'Placing Order…'
+              : shippingLoading
+                ? 'Calculating shipping…'
+                : total !== null
+                  ? `Place Order — ${formatINR(total)}`
+                  : 'Place Order'
+            }
           </button>
         </div>
       </div>
