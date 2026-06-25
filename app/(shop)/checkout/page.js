@@ -19,7 +19,7 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [submitting, setSubmitting] = useState(false);
 
-  const shipping = subtotal - discount >= 999 ? 0 : 49;
+  const shipping = subtotal - discount >= 999 ? 0 : 0;
   const total = Math.round(subtotal - discount + shipping);
 
   function update(field, value) {
