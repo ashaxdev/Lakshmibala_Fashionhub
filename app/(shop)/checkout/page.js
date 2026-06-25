@@ -92,7 +92,7 @@ export default function CheckoutPage() {
                 paymentMethod: 'razorpay',
                 razorpayOrderId: response.razorpay_order_id,
                 razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature 
+                razorpaySignature: response.razorpay_signature
               })
             });
             const finalData = await finalRes.json();
@@ -135,178 +135,62 @@ export default function CheckoutPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-5 sm:py-8 pb-28 sm:pb-8">
+    <div className="max-w-4xl mx-auto px-4 py-8">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
-      <h1 className="font-display text-xl sm:text-2xl font-bold text-brand-magenta mb-4 sm:mb-6">
-        Checkout
-      </h1>
+      <h1 className="font-display text-2xl font-bold text-brand-magenta mb-6">Checkout</h1>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-8">
-        {/* Shipping Details */}
-        <div className="card-soft p-4 sm:p-5 space-y-3">
+      <div className="grid sm:grid-cols-2 gap-8">
+        <div className="card-soft p-5 space-y-3">
           <h2 className="font-semibold text-brand-ink mb-1">Shipping Details</h2>
-
-          <input
-            className="w-full border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm"
-            placeholder="Full Name *"
-            value={form.name}
-            onChange={(e) => update('name', e.target.value)}
-          />
-          <input
-            className="w-full border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm"
-            placeholder="Phone Number *"
-            type="tel"
-            inputMode="numeric"
-            value={form.phone}
-            onChange={(e) => update('phone', e.target.value)}
-          />
-          <input
-            className="w-full border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm"
-            placeholder="Email (optional)"
-            type="email"
-            value={form.email}
-            onChange={(e) => update('email', e.target.value)}
-          />
-          <input
-            className="w-full border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm"
-            placeholder="Address Line 1 *"
-            value={form.line1}
-            onChange={(e) => update('line1', e.target.value)}
-          />
-          <input
-            className="w-full border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm"
-            placeholder="Address Line 2"
-            value={form.line2}
-            onChange={(e) => update('line2', e.target.value)}
-          />
-
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Full Name *" value={form.name} onChange={(e) => update('name', e.target.value)} />
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Phone Number *" value={form.phone} onChange={(e) => update('phone', e.target.value)} />
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Email (optional)" value={form.email} onChange={(e) => update('email', e.target.value)} />
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Address Line 1 *" value={form.line1} onChange={(e) => update('line1', e.target.value)} />
+          <input className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Address Line 2" value={form.line2} onChange={(e) => update('line2', e.target.value)} />
           <div className="grid grid-cols-2 gap-3">
-            <input
-              className="border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm min-w-0"
-              placeholder="City *"
-              value={form.city}
-              onChange={(e) => update('city', e.target.value)}
-            />
-            <input
-              className="border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm min-w-0"
-              placeholder="State"
-              value={form.state}
-              onChange={(e) => update('state', e.target.value)}
-            />
+            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="City *" value={form.city} onChange={(e) => update('city', e.target.value)} />
+            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="State" value={form.state} onChange={(e) => update('state', e.target.value)} />
           </div>
-
           <div className="grid grid-cols-2 gap-3">
-            <input
-              className="border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm min-w-0"
-              placeholder="Pincode *"
-              type="tel"
-              inputMode="numeric"
-              value={form.pincode}
-              onChange={(e) => update('pincode', e.target.value)}
-            />
-            <input
-              className="border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm min-w-0"
-              placeholder="Landmark"
-              value={form.landmark}
-              onChange={(e) => update('landmark', e.target.value)}
-            />
+            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Pincode *" value={form.pincode} onChange={(e) => update('pincode', e.target.value)} />
+            <input className="border rounded-lg px-3 py-2 text-sm" placeholder="Landmark" value={form.landmark} onChange={(e) => update('landmark', e.target.value)} />
           </div>
         </div>
 
-        {/* Order Summary + Payment */}
         <div>
-          <div className="card-soft p-4 sm:p-5">
+          <div className="card-soft p-5">
             <h2 className="font-semibold text-brand-ink mb-3">Order Summary</h2>
-
             {items.map((i, idx) => (
-              <div
-                key={idx}
-                className="flex justify-between gap-3 text-sm py-1 text-brand-ink/70"
-              >
-                <span className="break-words">
-                  {i.name} ({i.color}/{i.size}) x{i.qty}
-                </span>
-                <span className="whitespace-nowrap">{formatINR(i.price * i.qty)}</span>
+              <div key={idx} className="flex justify-between text-sm py-1 text-brand-ink/70">
+                <span>{i.name} ({i.color}/{i.size}) x{i.qty}</span>
+                <span>{formatINR(i.price * i.qty)}</span>
               </div>
             ))}
-
-            <div className="flex flex-col sm:flex-row gap-2 mt-3">
-              <input
-                className="flex-1 border rounded-lg px-3 py-2.5 sm:py-2 text-base sm:text-sm min-w-0"
-                placeholder="Coupon code"
-                value={coupon}
-                onChange={(e) => setCoupon(e.target.value)}
-              />
-              <button
-                onClick={applyCoupon}
-                className="btn-outline px-4 py-2.5 sm:py-2 text-sm w-full sm:w-auto"
-              >
-                Apply
-              </button>
+            <div className="flex gap-2 mt-3">
+              <input className="flex-1 border rounded-lg px-3 py-2 text-sm" placeholder="Coupon code" value={coupon} onChange={(e) => setCoupon(e.target.value)} />
+              <button onClick={applyCoupon} className="btn-outline px-4 text-sm">Apply</button>
             </div>
-
             <hr className="my-3" />
-
-            <div className="flex justify-between text-sm">
-              <span>Subtotal</span>
-              <span>{formatINR(subtotal)}</span>
-            </div>
-            {discount > 0 && (
-              <div className="flex justify-between text-sm text-brand-green">
-                <span>Discount</span>
-                <span>-{formatINR(discount)}</span>
-              </div>
-            )}
-            <div className="flex justify-between text-sm">
-              <span>Shipping</span>
-              <span>{shipping === 0 ? 'Free' : formatINR(shipping)}</span>
-            </div>
-            <div className="flex justify-between font-bold text-base sm:text-lg mt-2">
-              <span>Total</span>
-              <span className="text-brand-magenta">{formatINR(total)}</span>
-            </div>
+            <div className="flex justify-between text-sm"><span>Subtotal</span><span>{formatINR(subtotal)}</span></div>
+            {discount > 0 && <div className="flex justify-between text-sm text-brand-green"><span>Discount</span><span>-{formatINR(discount)}</span></div>}
+            <div className="flex justify-between text-sm"><span>Shipping</span><span>{shipping === 0 ? 'Free' : formatINR(shipping)}</span></div>
+            <div className="flex justify-between font-bold text-lg mt-2"><span>Total</span><span className="text-brand-magenta">{formatINR(total)}</span></div>
           </div>
 
-          <div className="card-soft p-4 sm:p-5 mt-4">
+          <div className="card-soft p-5 mt-4">
             <h2 className="font-semibold text-brand-ink mb-2">Payment Method</h2>
             <label className="flex items-center gap-2 text-sm mb-2">
-              <input
-                type="radio"
-                className="w-4 h-4 shrink-0"
-                checked={paymentMethod === 'razorpay'}
-                onChange={() => setPaymentMethod('razorpay')}
-              />
-              Pay Online (Cards/UPI/Netbanking)
+              <input type="radio" checked={paymentMethod === 'razorpay'} onChange={() => setPaymentMethod('razorpay')} /> Pay Online (Cards/UPI/Netbanking)
             </label>
             {/* <label className="flex items-center gap-2 text-sm">
               <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} /> Cash on Delivery
             </label> */}
           </div>
 
-          {/* Place Order button — visible inline on tablet/desktop */}
-          <button
-            onClick={placeOrder}
-            disabled={submitting}
-            className="hidden sm:block btn-primary w-full mt-4 py-3"
-          >
+          <button onClick={placeOrder} disabled={submitting} className="btn-primary w-full mt-4">
             {submitting ? 'Placing Order...' : `Place Order - ${formatINR(total)}`}
           </button>
         </div>
-      </div>
-
-      {/* Sticky checkout bar — mobile only, keeps total + CTA reachable */}
-      <div className="sm:hidden fixed bottom-0 left-0 right-0 z-20 bg-white border-t border-black/10 px-4 py-3 flex items-center gap-3 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
-        <div className="text-sm leading-tight">
-          <div className="text-brand-ink/60">Total</div>
-          <div className="font-bold text-brand-magenta text-base">{formatINR(total)}</div>
-        </div>
-        <button
-          onClick={placeOrder}
-          disabled={submitting}
-          className="btn-primary flex-1 py-3 text-sm"
-        >
-          {submitting ? 'Placing Order...' : 'Place Order'}
-        </button>
       </div>
     </div>
   );
