@@ -22,7 +22,7 @@ export async function generateMetadata() {
   const description =
     settings?.seoDescription ||
     'Shop trendy women kurtis, rayon umbrella kurtis, side open kurtis, nighties, 2 piece sets and innerwear online from Lakshmibala Clothing Store, Sivakasi, Tamil Nadu.';
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lakshmibalaclothing.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lakshmibala.in';
   return {
     title: { default: title, template: '%s | Lakshmibala Clothing Store' },
     description,

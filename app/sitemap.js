@@ -3,7 +3,7 @@ import Product from '@/models/Product';
 import Category from '@/models/Category';
 
 export default async function sitemap() {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lakshmibalaclothing.com';
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lakshmibala.in';
   let products = [];
   let categories = [];
   try {
