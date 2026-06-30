@@ -7,6 +7,23 @@ import { Plus, Trash2, Upload, Loader2, X } from 'lucide-react';
 
 const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size','32','34','36','38','40','75','80','85','90','95','100'];
 
+const PRESET_COLORS = [
+  { name: 'Black', hex: '#000000' },
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Red', hex: '#E53935' },
+  { name: 'Pink', hex: '#E91E8C' },
+  { name: 'Magenta', hex: '#D81B60' },
+  { name: 'Orange', hex: '#FB8C00' },
+  { name: 'Yellow', hex: '#FDD835' },
+  { name: 'Green', hex: '#43A047' },
+  { name: 'Blue', hex: '#1E88E5' },
+  { name: 'Navy', hex: '#1A237E' },
+  { name: 'Purple', hex: '#8E24AA' },
+  { name: 'Beige', hex: '#D7CCC8' },
+  { name: 'Brown', hex: '#6D4C41' },
+  { name: 'Grey', hex: '#9E9E9E' },
+];
+
 function emptyVariant() {
   return { color: '', colorHex: '#E91E8C', images: [''], price: '', compareAtPrice: '', sizes: [{ size: 'M', stock: 0, sku: '' }] };
 }
@@ -70,6 +87,62 @@ function ImageSlot({ value, onChange, onRemove, showRemove }) {
           <X size={15} />
         </button>
       )}
+    </div>
+  );
+}
+
+// Mobile-friendly color picker: preset swatches with large touch targets,
+// plus a custom-color trigger that opens the native picker only when needed.
+function ColorPicker({ value, onChange }) {
+  const customRef = useRef();
+  const isPreset = PRESET_COLORS.some((c) => c.hex.toLowerCase() === (value || '').toLowerCase());
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {PRESET_COLORS.map((c) => (
+          <button
+            key={c.hex}
+            type="button"
+            title={c.name}
+            onClick={() => onChange(c.hex)}
+            className={`w-9 h-9 rounded-full border-2 shrink-0 transition-transform ${
+              value?.toLowerCase() === c.hex.toLowerCase()
+                ? 'border-brand-magenta scale-110 ring-2 ring-brand-magenta/30'
+                : 'border-black/10'
+            }`}
+            style={{ backgroundColor: c.hex }}
+          />
+        ))}
+
+        {/* Custom color trigger */}
+        <button
+          type="button"
+          onClick={() => customRef.current?.click()}
+          title="Custom color"
+          className={`w-9 h-9 rounded-full border-2 shrink-0 flex items-center justify-center text-[10px] font-medium overflow-hidden ${
+            !isPreset ? 'border-brand-magenta scale-110 ring-2 ring-brand-magenta/30' : 'border-black/10'
+          }`}
+          style={{ background: isPreset ? 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' : value }}
+        >
+          {!isPreset && <span className="sr-only">Custom</span>}
+        </button>
+        <input
+          ref={customRef}
+          type="color"
+          className="sr-only"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </div>
+
+      <div className="flex items-center gap-2">
+        <span
+          className="w-5 h-5 rounded-full border border-black/10 shrink-0"
+          style={{ backgroundColor: value }}
+        />
+        <span className="text-xs text-brand-ink/60 font-mono">{value}</span>
+      </div>
     </div>
   );
 }
@@ -236,11 +309,17 @@ export default function ProductForm({ initial, productId }) {
               )}
             </div>
 
-            <div className="grid sm:grid-cols-4 gap-3 mb-3">
+            <div className="grid sm:grid-cols-2 gap-3 mb-3">
               <input placeholder="Color name (e.g. Green)" className="border rounded-lg px-3 py-2 text-sm" value={v.color} onChange={(e) => updateVariant(vIdx, 'color', e.target.value)} />
-              <input type="color" className="border rounded-lg h-10 w-full" value={v.colorHex} onChange={(e) => updateVariant(vIdx, 'colorHex', e.target.value)} />
-              <input placeholder="Price ₹" type="number" className="border rounded-lg px-3 py-2 text-sm" value={v.price} onChange={(e) => updateVariant(vIdx, 'price', e.target.value)} />
-              <input placeholder="Compare-at price ₹" type="number" className="border rounded-lg px-3 py-2 text-sm" value={v.compareAtPrice} onChange={(e) => updateVariant(vIdx, 'compareAtPrice', e.target.value)} />
+              <div className="grid grid-cols-2 gap-3">
+                <input placeholder="Price ₹" type="number" className="border rounded-lg px-3 py-2 text-sm" value={v.price} onChange={(e) => updateVariant(vIdx, 'price', e.target.value)} />
+                <input placeholder="Compare-at price ₹" type="number" className="border rounded-lg px-3 py-2 text-sm" value={v.compareAtPrice} onChange={(e) => updateVariant(vIdx, 'compareAtPrice', e.target.value)} />
+              </div>
+            </div>
+
+            <div className="mb-3">
+              <p className="text-xs font-medium text-brand-ink/60 mb-2">Swatch color</p>
+              <ColorPicker value={v.colorHex} onChange={(hex) => updateVariant(vIdx, 'colorHex', hex)} />
             </div>
 
             <p className="text-xs font-medium text-brand-ink/60 mb-2">Images for this colour — click thumbnail to upload</p>
