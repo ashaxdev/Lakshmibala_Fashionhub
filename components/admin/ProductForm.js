@@ -92,10 +92,33 @@ function ImageSlot({ value, onChange, onRemove, showRemove }) {
 }
 
 // Mobile-friendly color picker: preset swatches with large touch targets,
-// plus a custom-color trigger that opens the native picker only when needed.
+// plus a bottom-sheet panel for custom colors (hex entry + native picker fallback).
 function ColorPicker({ value, onChange }) {
-  const customRef = useRef();
+  const [showCustom, setShowCustom] = useState(false);
+  const [hexInput, setHexInput] = useState(value || '#000000');
+  const nativeRef = useRef();
   const isPreset = PRESET_COLORS.some((c) => c.hex.toLowerCase() === (value || '').toLowerCase());
+
+  function openCustom() {
+    setHexInput(value || '#000000');
+    setShowCustom(true);
+  }
+
+  function isValidHex(hex) {
+    return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(hex);
+  }
+
+  function handleHexChange(e) {
+    let val = e.target.value;
+    if (val && !val.startsWith('#')) val = '#' + val;
+    setHexInput(val);
+    if (isValidHex(val)) onChange(val);
+  }
+
+  function applyAndClose() {
+    if (isValidHex(hexInput)) onChange(hexInput);
+    setShowCustom(false);
+  }
 
   return (
     <div>
@@ -115,25 +138,18 @@ function ColorPicker({ value, onChange }) {
           />
         ))}
 
-        {/* Custom color trigger */}
+        {/* Custom color trigger — opens friendly panel instead of raw native picker */}
         <button
           type="button"
-          onClick={() => customRef.current?.click()}
+          onClick={openCustom}
           title="Custom color"
-          className={`w-9 h-9 rounded-full border-2 shrink-0 flex items-center justify-center text-[10px] font-medium overflow-hidden ${
+          className={`w-9 h-9 rounded-full border-2 shrink-0 flex items-center justify-center overflow-hidden ${
             !isPreset ? 'border-brand-magenta scale-110 ring-2 ring-brand-magenta/30' : 'border-black/10'
           }`}
           style={{ background: isPreset ? 'conic-gradient(red, yellow, lime, cyan, blue, magenta, red)' : value }}
         >
-          {!isPreset && <span className="sr-only">Custom</span>}
+          <span className="sr-only">Custom color</span>
         </button>
-        <input
-          ref={customRef}
-          type="color"
-          className="sr-only"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        />
       </div>
 
       <div className="flex items-center gap-2">
@@ -141,8 +157,80 @@ function ColorPicker({ value, onChange }) {
           className="w-5 h-5 rounded-full border border-black/10 shrink-0"
           style={{ backgroundColor: value }}
         />
-        <span className="text-xs text-brand-ink/60 font-mono">{value}</span>
+        <button
+          type="button"
+          onClick={openCustom}
+          className="text-xs text-brand-ink/60 font-mono underline decoration-dotted"
+        >
+          {value}
+        </button>
       </div>
+
+      {/* Mobile-friendly custom color panel */}
+      {showCustom && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center bg-black/40"
+          onClick={() => setShowCustom(false)}
+        >
+          <div
+            className="bg-white w-full sm:w-80 rounded-t-2xl sm:rounded-2xl p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-sm">Custom color</h3>
+              <button type="button" onClick={() => setShowCustom(false)} className="text-brand-ink/40">
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Large preview, tappable to open native OS color picker */}
+            <button
+              type="button"
+              onClick={() => nativeRef.current?.click()}
+              className="w-full h-20 rounded-xl border border-black/10 mb-4 relative overflow-hidden"
+              style={{ backgroundColor: isValidHex(hexInput) ? hexInput : '#fff' }}
+            >
+              <span className="absolute bottom-1.5 right-2 text-[10px] bg-white/80 px-1.5 py-0.5 rounded text-brand-ink/60">
+                Tap to pick visually
+              </span>
+            </button>
+            <input
+              ref={nativeRef}
+              type="color"
+              className="sr-only"
+              value={isValidHex(hexInput) ? hexInput : '#000000'}
+              onChange={(e) => { setHexInput(e.target.value); onChange(e.target.value); }}
+            />
+
+            {/* Hex text entry — easiest path on mobile keyboards */}
+            <label className="text-xs font-medium text-brand-ink/60 mb-1 block">Hex code</label>
+            <input
+              type="text"
+              inputMode="text"
+              autoCapitalize="characters"
+              placeholder="#E91E8C"
+              maxLength={7}
+              className={`w-full border rounded-lg px-3 py-2.5 text-sm font-mono mb-1 ${
+                hexInput && !isValidHex(hexInput) ? 'border-red-400' : ''
+              }`}
+              value={hexInput}
+              onChange={handleHexChange}
+            />
+            {hexInput && !isValidHex(hexInput) && (
+              <p className="text-xs text-red-500 mb-2">Enter a valid hex code, e.g. #E91E8C</p>
+            )}
+
+            <button
+              type="button"
+              onClick={applyAndClose}
+              disabled={!isValidHex(hexInput)}
+              className="btn-primary w-full mt-3 disabled:opacity-40"
+            >
+              Use this color
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
