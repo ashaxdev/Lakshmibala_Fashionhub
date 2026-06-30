@@ -22,6 +22,37 @@ export function CartProvider({ children }) {
     if (loaded) localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
   }, [items, loaded]);
 
+  // Read-only stock check — does NOT modify the cart. Used at checkout so we
+  // can block submission and show the customer exactly what's wrong, letting
+  // them decide whether to remove/adjust the item themselves.
+  const checkStockOnly = useCallback(async () => {
+    if (items.length === 0) return { allOk: true, results: [] };
+
+    try {
+      const res = await fetch('/api/products/check-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId,
+            size: i.size,
+            qty: i.qty
+          }))
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Could not verify stock');
+        return { allOk: false, results: [] };
+      }
+      return data;
+    } catch {
+      toast.error('Could not verify stock. Please check your connection.');
+      return { allOk: false, results: [] };
+    }
+  }, [items]);
+
   const addItem = useCallback((item) => {
     setItems((prev) => {
       const idx = prev.findIndex(
@@ -50,11 +81,65 @@ export function CartProvider({ children }) {
 
   const clearCart = useCallback(() => setItems([]), []);
 
+  // Checks current cart against live stock. Auto-clamps quantities down to
+  // available stock and drops items that are completely unavailable.
+  // Returns { allOk, results } so callers can show specific messaging.
+  const validateStock = useCallback(async () => {
+    if (items.length === 0) return { allOk: true, results: [] };
+
+    let data;
+    try {
+      const res = await fetch('/api/products/check-stock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: items.map((i) => ({
+            productId: i.productId,
+            variantId: i.variantId,
+            size: i.size,
+            qty: i.qty
+          }))
+        })
+      });
+      data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Could not verify stock');
+        return { allOk: false, results: [] };
+      }
+    } catch {
+      toast.error('Could not verify stock. Please check your connection.');
+      return { allOk: false, results: [] };
+    }
+
+    if (!data.allOk) {
+      setItems((prev) =>
+        prev
+          .map((item) => {
+            const r = data.results.find(
+              (x) =>
+                x.productId === item.productId &&
+                x.variantId === item.variantId &&
+                x.size === item.size
+            );
+            if (!r) return item;
+            if (r.available <= 0) return null; // drop unavailable items
+            if (r.available < item.qty) return { ...item, qty: r.available }; // clamp
+            return item;
+          })
+          .filter(Boolean)
+      );
+    }
+
+    return data;
+  }, [items]);
+
   const subtotal = items.reduce((s, i) => s + i.price * i.qty, 0);
   const count = items.reduce((s, i) => s + i.qty, 0);
 
   return (
-    <CartContext.Provider value={{ items, addItem, updateQty, removeItem, clearCart, subtotal, count }}>
+    <CartContext.Provider
+      value={{ items, addItem, updateQty, removeItem, clearCart, subtotal, count, validateStock,checkStockOnly }}
+    >
       {children}
     </CartContext.Provider>
   );

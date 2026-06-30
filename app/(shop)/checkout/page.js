@@ -6,9 +6,10 @@ import Script from 'next/script';
 import toast from 'react-hot-toast';
 import { useCart } from '@/components/CartContext';
 import { formatINR } from '@/lib/utils';
+import { AlertTriangle } from 'lucide-react';
 
 export default function CheckoutPage() {
-  const { items, subtotal, clearCart } = useCart();
+  const { items, subtotal, clearCart, checkStockOnly, updateQty, removeItem } = useCart();
   const router = useRouter();
   const [form, setForm] = useState({
     name: '', phone: '', email: '',
@@ -18,16 +19,18 @@ export default function CheckoutPage() {
   const [discount, setDiscount] = useState(0);
   const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [submitting, setSubmitting] = useState(false);
+  const [checkingStock, setCheckingStock] = useState(true);
+  // Map of "productId-variantId-size" -> { available, reason } for unavailable items
+  const [stockIssues, setStockIssues] = useState({});
 
   // Shipping state from settings API
-  const [shipping, setShipping] = useState(null);          // actual cost for this order
-  const [freeShippingAbove, setFreeShippingAbove] = useState(null); // for the badge
+  const [shipping, setShipping] = useState(null);
+  const [freeShippingAbove, setFreeShippingAbove] = useState(null);
   const [shippingLoading, setShippingLoading] = useState(false);
 
   const discountedSubtotal = subtotal - discount;
   const total = shipping !== null ? Math.round(discountedSubtotal + shipping) : null;
 
-  // Re-fetch whenever discounted subtotal changes (pincode not needed — settings-based)
   const fetchShipping = useCallback(async () => {
     setShippingLoading(true);
     try {
@@ -53,6 +56,37 @@ export default function CheckoutPage() {
   useEffect(() => {
     fetchShipping();
   }, [fetchShipping]);
+
+  function issueKey(i) {
+    return [i.productId, i.variantId, i.size].filter(Boolean).join('-');
+  }
+
+  const runStockCheck = useCallback(async () => {
+    setCheckingStock(true);
+    const data = await checkStockOnly();
+    const issues = {};
+    if (!data.allOk) {
+      data.results.forEach((r) => {
+        if (!r.ok) {
+          issues[[r.productId, r.variantId, r.size].filter(Boolean).join('-')] = {
+            available: r.available,
+            reason: r.reason
+          };
+        }
+      });
+    }
+    setStockIssues(issues);
+    setCheckingStock(false);
+    return Object.keys(issues).length === 0;
+  }, [checkStockOnly]);
+
+  // Check stock once when checkout loads
+  useEffect(() => {
+    runStockCheck();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const hasStockIssues = Object.keys(stockIssues).length > 0;
 
   function update(field, value) {
     setForm((f) => ({ ...f, [field]: value }));
@@ -88,7 +122,18 @@ export default function CheckoutPage() {
       toast.error('Shipping is still being calculated, please wait');
       return;
     }
+
     setSubmitting(true);
+
+    // Final re-check immediately before submitting. We do NOT auto-fix here —
+    // if anything is unavailable, block and tell the customer exactly what,
+    // same as the inline banners below.
+    const ok = await runStockCheck();
+    if (!ok) {
+      toast.error('Some items in your cart are unavailable. Please remove or adjust them before checking out.');
+      setSubmitting(false);
+      return;
+    }
 
     const orderItems = items.map((i) => ({
       productId: i.productId, variantId: i.variantId, size: i.size, qty: i.qty
@@ -135,6 +180,11 @@ export default function CheckoutPage() {
             if (finalRes.ok) {
               clearCart();
               router.push(`/order-success/${finalData.order._id}`);
+            } else if (finalRes.status === 409) {
+              // Race condition: passed our pre-check but a concurrent order took the stock.
+              toast.error(finalData.error || 'An item sold out while you were checking out. If you were charged, contact support.');
+              await runStockCheck();
+              router.push('/cart');
             } else {
               toast.error(finalData.error || 'Could not save order');
             }
@@ -159,6 +209,10 @@ export default function CheckoutPage() {
         if (res.ok) {
           clearCart();
           router.push(`/order-success/${data.order._id}`);
+        } else if (res.status === 409) {
+          toast.error(data.error || 'An item sold out while you were checking out.');
+          await runStockCheck();
+          router.push('/cart');
         } else {
           toast.error(data.error || 'Could not place order');
         }
@@ -170,6 +224,9 @@ export default function CheckoutPage() {
     }
   }
 
+  const placeOrderDisabled =
+    submitting || shippingLoading || checkingStock || shipping === null || items.length === 0 || hasStockIssues;
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-6 sm:py-8">
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
@@ -177,8 +234,18 @@ export default function CheckoutPage() {
         Checkout
       </h1>
 
+      {/* Unavailable item banner */}
+      {hasStockIssues && (
+        <div className="flex items-start gap-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2.5 mb-4">
+          <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+          <span>
+            One or more items in your cart are unavailable in the requested quantity. Please remove or adjust them below to continue.
+          </span>
+        </div>
+      )}
+
       {/* Free shipping nudge */}
-      {freeShippingAbove !== null && shipping !== null && shipping > 0 && (
+      {freeShippingAbove !== null && shipping !== null && shipping > 0 && !hasStockIssues && (
         <p className="text-xs text-brand-ink/60 bg-brand-magenta/5 border border-brand-magenta/15 rounded-lg px-3 py-2 mb-4">
           Add {formatINR(freeShippingAbove - discountedSubtotal)} more to get <span className="font-semibold text-brand-green">free shipping</span>!
         </p>
@@ -270,13 +337,51 @@ export default function CheckoutPage() {
           <div className="card-soft p-4 sm:p-5">
             <h2 className="font-semibold text-brand-ink mb-3 text-sm sm:text-base">Order Summary</h2>
 
-            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-              {items.map((i, idx) => (
-                <div key={idx} className="flex justify-between text-sm py-1 text-brand-ink/70 gap-2">
-                  <span className="truncate">{i.name} ({i.color}/{i.size}) ×{i.qty}</span>
-                  <span className="shrink-0">{formatINR(i.price * i.qty)}</span>
-                </div>
-              ))}
+            <div className="space-y-1 max-h-64 overflow-y-auto pr-1">
+              {items.map((i, idx) => {
+                const key = issueKey(i);
+                const issue = stockIssues[key];
+                return (
+                  <div key={idx} className={issue ? 'py-1.5 border-b border-red-100' : 'py-1'}>
+                    <div className="flex justify-between text-sm text-brand-ink/70 gap-2">
+                      <span className="truncate">{i.name} ({i.color}/{i.size}) ×{i.qty}</span>
+                      <span className="shrink-0">{formatINR(i.price * i.qty)}</span>
+                    </div>
+                    {issue && (
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-xs text-red-600">
+                          {issue.available <= 0 ? 'Out of stock' : `Only ${issue.available} available`} — remove or adjust to continue
+                        </span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {issue.available > 0 && (
+                            <button
+                              onClick={async () => {
+                                updateQty(
+                                  [i.productId, i.variantId, i.size, i.comboId].filter(Boolean).join('-'),
+                                  issue.available
+                                );
+                                await runStockCheck();
+                              }}
+                              className="text-xs underline text-brand-magenta"
+                            >
+                              Set to {issue.available}
+                            </button>
+                          )}
+                          <button
+                            onClick={async () => {
+                              removeItem([i.productId, i.variantId, i.size, i.comboId].filter(Boolean).join('-'));
+                              await runStockCheck();
+                            }}
+                            className="text-xs underline text-red-600"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Coupon */}
@@ -340,25 +445,25 @@ export default function CheckoutPage() {
               />
               Pay Online (Cards / UPI / Netbanking)
             </label>
-            {/* <label className="flex items-center gap-3 text-sm cursor-pointer mt-2">
-              <input type="radio" checked={paymentMethod === 'cod'} onChange={() => setPaymentMethod('cod')} className="accent-brand-magenta w-4 h-4" />
-              Cash on Delivery
-            </label> */}
           </div>
 
           {/* Place Order CTA */}
           <button
             onClick={placeOrder}
-            disabled={submitting || shippingLoading || shipping === null}
+            disabled={placeOrderDisabled}
             className="btn-primary w-full py-3 text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting
               ? 'Placing Order…'
-              : shippingLoading
-                ? 'Calculating shipping…'
-                : total !== null
-                  ? `Place Order — ${formatINR(total)}`
-                  : 'Place Order'
+              : checkingStock
+                ? 'Checking stock…'
+                : hasStockIssues
+                  ? 'Fix unavailable items to continue'
+                  : shippingLoading
+                    ? 'Calculating shipping…'
+                    : total !== null
+                      ? `Place Order — ${formatINR(total)}`
+                      : 'Place Order'
             }
           </button>
         </div>

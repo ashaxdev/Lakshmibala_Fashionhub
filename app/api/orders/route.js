@@ -10,7 +10,34 @@ import Settings from '@/models/Settings';
 import { genOrderNumber, genCouponCheck } from '@/lib/utils';
 import { requireAdmin } from '@/lib/apiAuth';
 
+// Atomically decrement stock for a single (product, variant, size), only if
+// enough stock is currently available. Returns true on success.
+async function tryDecrementStock(productId, variantId, size, qty) {
+  const updated = await Product.findOneAndUpdate(
+    {
+      _id: productId,
+      'variants._id': variantId,
+      'variants.sizes.size': size,
+      'variants.sizes.stock': { $gte: qty }
+    },
+    { $inc: { 'variants.$[v].sizes.$[s].stock': -qty, soldCount: qty } },
+    { arrayFilters: [{ 'v._id': variantId }, { 's.size': size }] }
+  );
+  return !!updated;
+}
+
+async function restoreStock(productId, variantId, size, qty) {
+  await Product.updateOne(
+    { _id: productId, 'variants._id': variantId, 'variants.sizes.size': size },
+    { $inc: { 'variants.$[v].sizes.$[s].stock': qty, soldCount: -qty } },
+    { arrayFilters: [{ 'v._id': variantId }, { 's.size': size }] }
+  );
+}
+
 export async function POST(req) {
+  // Tracks every successful decrement so we can roll back if anything later fails.
+  const decremented = [];
+
   try {
     await dbConnect();
     const body = await req.json();
@@ -40,27 +67,33 @@ export async function POST(req) {
 
     let subtotal = 0;
     const orderItems = [];
-    const stockUpdateItems = [];
 
+    // --- Pass 1: validate items, build order line items, and atomically
+    // reserve stock as we go. Any failure here rolls back everything
+    // already decremented in this loop. ---
     for (const item of items) {
       if (item.isCombo === true && item.comboId) {
         if (!mongoose.Types.ObjectId.isValid(item.comboId)) continue;
 
         const combo = await Combo.findById(item.comboId);
         if (!combo || !combo.isActive) {
+          await rollback(decremented);
           return NextResponse.json({ error: 'This combo is no longer available' }, { status: 400 });
         }
 
+        // Reserve stock for every product inside the combo. If any sub-item
+        // fails, undo every reservation made so far (including earlier
+        // sub-items of this same combo) and bail.
         for (const sub of combo.products) {
-          const subProduct = await Product.findById(sub.product);
-          const subVariant = subProduct?.variants.id(sub.variantId);
-          const subSizeEntry = subVariant?.sizes.find((s) => s.size === sub.size);
-          if (!subProduct || !subVariant || !subSizeEntry || subSizeEntry.stock < item.qty) {
+          const ok = await tryDecrementStock(sub.product, sub.variantId, sub.size, item.qty);
+          if (!ok) {
+            await rollback(decremented);
             return NextResponse.json(
               { error: `Combo "${combo.name}" is out of stock` },
-              { status: 400 }
+              { status: 409 }
             );
           }
+          decremented.push({ productId: sub.product, variantId: sub.variantId, size: sub.size, qty: item.qty });
         }
 
         subtotal += combo.comboPrice * item.qty;
@@ -75,7 +108,6 @@ export async function POST(req) {
           qty: item.qty,
           isCombo: true
         });
-        stockUpdateItems.push({ isCombo: true, comboProducts: combo.products, qty: item.qty });
         continue;
       }
 
@@ -88,12 +120,18 @@ export async function POST(req) {
       const variant = product.variants.id(item.variantId);
       if (!variant) continue;
       const sizeEntry = variant.sizes.find((s) => s.size === item.size);
-      if (!sizeEntry || sizeEntry.stock < item.qty) {
+      if (!sizeEntry) continue;
+
+      const ok = await tryDecrementStock(item.productId, item.variantId, item.size, item.qty);
+      if (!ok) {
+        await rollback(decremented);
         return NextResponse.json(
           { error: `${product.name} (${variant.color}, ${item.size}) is out of stock` },
-          { status: 400 }
+          { status: 409 }
         );
       }
+      decremented.push({ productId: item.productId, variantId: item.variantId, size: item.size, qty: item.qty });
+
       subtotal += variant.price * item.qty;
       orderItems.push({
         product: product._id,
@@ -104,16 +142,12 @@ export async function POST(req) {
         price: variant.price,
         qty: item.qty
       });
-      stockUpdateItems.push({
-        isCombo: false,
-        productId: item.productId,
-        variantId: item.variantId,
-        size: item.size,
-        qty: item.qty
-      });
     }
 
-    if (!orderItems.length) return NextResponse.json({ error: 'No valid items in cart' }, { status: 400 });
+    if (!orderItems.length) {
+      await rollback(decremented);
+      return NextResponse.json({ error: 'No valid items in cart' }, { status: 400 });
+    }
 
     let discount = 0;
     let appliedCoupon = '';
@@ -136,38 +170,29 @@ export async function POST(req) {
     const shippingFee = subtotal - discount >= settings.freeShippingAbove ? 0 : settings.shippingFee;
     const total = Math.round(subtotal - discount + shippingFee);
 
-    const order = await Order.create({
-      orderNumber: genOrderNumber(),
-      items: orderItems,
-      customer,
-      shippingAddress,
-      subtotal,
-      discount,
-      couponCode: appliedCoupon,
-      shippingFee,
-      total,
-      paymentMethod: paymentMethod || 'cod',
-      paymentStatus: paymentMethod === 'razorpay' ? 'paid' : 'pending',
-      razorpayOrderId,
-      razorpayPaymentId
-    });
-
-    for (const entry of stockUpdateItems) {
-      if (entry.isCombo) {
-        for (const sub of entry.comboProducts) {
-          await Product.updateOne(
-            { _id: sub.product, 'variants._id': sub.variantId, 'variants.sizes.size': sub.size },
-            { $inc: { 'variants.$[v].sizes.$[s].stock': -entry.qty, soldCount: entry.qty } },
-            { arrayFilters: [{ 'v._id': sub.variantId }, { 's.size': sub.size }] }
-          );
-        }
-        continue;
-      }
-      await Product.updateOne(
-        { _id: entry.productId, 'variants._id': entry.variantId, 'variants.sizes.size': entry.size },
-        { $inc: { 'variants.$[v].sizes.$[s].stock': -entry.qty, soldCount: entry.qty } },
-        { arrayFilters: [{ 'v._id': entry.variantId }, { 's.size': entry.size }] }
-      );
+    // Stock is already safely reserved at this point — only now do we
+    // create the order record.
+    let order;
+    try {
+      order = await Order.create({
+        orderNumber: genOrderNumber(),
+        items: orderItems,
+        customer,
+        shippingAddress,
+        subtotal,
+        discount,
+        couponCode: appliedCoupon,
+        shippingFee,
+        total,
+        paymentMethod: paymentMethod || 'cod',
+        paymentStatus: paymentMethod === 'razorpay' ? 'paid' : 'pending',
+        razorpayOrderId,
+        razorpayPaymentId
+      });
+    } catch (orderErr) {
+      // Order failed to save after stock was already reserved — give the stock back.
+      await rollback(decremented);
+      throw orderErr;
     }
 
     return NextResponse.json({ order }, { status: 201 });
@@ -179,6 +204,12 @@ export async function POST(req) {
       { error: 'Could not create order. If you were charged, contact support with your payment ID.' },
       { status: 500 }
     );
+  }
+}
+
+async function rollback(decremented) {
+  for (const d of decremented) {
+    await restoreStock(d.productId, d.variantId, d.size, d.qty);
   }
 }
 

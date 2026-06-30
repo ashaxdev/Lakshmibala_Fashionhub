@@ -1,15 +1,43 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import { useCart, cartKey } from '@/components/CartContext';
 import { formatINR } from '@/lib/utils';
-import { Trash2, ShoppingBag } from 'lucide-react';
+import { Trash2, ShoppingBag, Loader2 } from 'lucide-react';
 
 export default function CartPage() {
-  const { items, updateQty, removeItem, subtotal } = useCart();
+  const { items, updateQty, removeItem, subtotal, validateStock } = useCart();
+  const [checkingStock, setCheckingStock] = useState(true);
 
-  if (items.length === 0) {
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setCheckingStock(true);
+      const data = await validateStock();
+      if (cancelled) return;
+      if (!data.allOk) {
+        data.results
+          .filter((r) => !r.ok)
+          .forEach((r) => {
+            toast.error(
+              r.available <= 0
+                ? `Removed from cart: ${r.reason}`
+                : `Quantity adjusted: ${r.reason}`
+            );
+          });
+      }
+      setCheckingStock(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  if (items.length === 0 && !checkingStock) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center">
         <ShoppingBag size={48} className="mx-auto text-brand-pink/40 mb-4" />
@@ -21,7 +49,11 @@ export default function CartPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <h1 className="font-display text-2xl font-bold text-brand-magenta mb-6">Your Cart</h1>
+      <h1 className="font-display text-2xl font-bold text-brand-magenta mb-6 flex items-center gap-2">
+        Your Cart
+        {checkingStock && <Loader2 size={18} className="animate-spin text-brand-ink/40" />}
+      </h1>
+
       <div className="space-y-4">
         {items.map((item) => {
           const key = cartKey(item);
