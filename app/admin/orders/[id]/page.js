@@ -41,9 +41,17 @@ export default function AdminOrderDetailPage() {
       <div className="card-soft p-5 mb-4">
         <h2 className="font-semibold mb-2">Items</h2>
         {order.items.map((item, i) => (
-          <div key={i} className="flex justify-between text-sm py-1">
-            <span>{item.name} ({item.color}/{item.size}) x{item.qty}</span>
-            <span>{formatINR(item.price * item.qty)}</span>
+          <div key={i} className="flex items-center gap-3 text-sm py-2 border-b last:border-b-0 border-brand-ink/5">
+            <img
+              src={item.image || '/placeholder-product.png'}
+              alt={item.name}
+              className="w-12 h-12 rounded-lg object-cover border border-brand-ink/10 flex-shrink-0"
+              onError={(e) => { e.currentTarget.src = '/placeholder-product.png'; }}
+            />
+            <div className="flex-1 flex justify-between">
+              <span>{item.name} ({item.color}/{item.size}) x{item.qty}</span>
+              <span>{formatINR(item.price * item.qty)}</span>
+            </div>
           </div>
         ))}
         <div className="flex justify-between font-bold mt-2 border-t pt-2"><span>Total</span><span>{formatINR(order.total)}</span></div>
