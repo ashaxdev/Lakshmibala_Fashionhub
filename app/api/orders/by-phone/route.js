@@ -64,8 +64,12 @@ export async function POST(req) {
     status: o.status,
     paymentMethod: o.paymentMethod,
     paymentStatus: o.paymentStatus,
-    courier: o.courier?.trackingId
-      ? { partner: o.courier.partner, trackingId: o.courier.trackingId }
+    courier: (o.courier?.trackingId || o.courier?.awbNumber)
+      ? {
+          partner: o.courier.partner,
+          trackingId: o.courier.trackingId,
+          awbNumber: o.courier.awbNumber
+        }
       : null,
     createdAt: o.createdAt
   }));

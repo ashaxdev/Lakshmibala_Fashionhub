@@ -16,6 +16,109 @@ const STATUS_STYLES = {
   returned: 'bg-gray-100 text-gray-700'
 };
 
+function getTrackingUrl(partner, id) {
+  if (!partner || !id) return null;
+  const key = partner.trim().toLowerCase();
+  const map = {
+    delhivery: `https://www.delhivery.com/track/package/${id}`,
+    bluedart: `https://www.bluedart.com/tracking?trackingId=${id}`,
+    'blue dart': `https://www.bluedart.com/tracking?trackingId=${id}`,
+    dtdc: `https://www.dtdc.in/trace.asp?strCnno=${id}`,
+    ecom: `https://ecomexpress.in/tracking/?awb_field=${id}`,
+    'ecom express': `https://ecomexpress.in/tracking/?awb_field=${id}`,
+    xpressbees: `https://www.xpressbees.com/track?awbNo=${id}`,
+    shadowfax: `https://www.shadowfax.in/track/${id}`,
+    ekart: `https://ekartlogistics.com/track/${id}`,
+    'india post': 'https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx'
+  };
+  return map[key] || null;
+}
+
+function getPartnerHomeUrl(partner) {
+  if (!partner) return null;
+  const key = partner.trim().toLowerCase();
+  const map = {
+    delhivery: 'https://www.delhivery.com/',
+    bluedart: 'https://www.bluedart.com/',
+    'blue dart': 'https://www.bluedart.com/',
+    dtdc: 'https://www.dtdc.in/',
+    ecom: 'https://ecomexpress.in/',
+    'ecom express': 'https://ecomexpress.in/',
+    xpressbees: 'https://www.xpressbees.com/',
+    shadowfax: 'https://www.shadowfax.in/',
+    ekart: 'https://ekartlogistics.com/',
+    'india post': 'https://www.indiapost.gov.in/'
+  };
+  return map[key] || null;
+}
+
+function CourierInfo({ courier }) {
+  if (!courier?.trackingId && !courier?.awbNumber) return null;
+
+  const homeUrl = getPartnerHomeUrl(courier.partner);
+  const awbUrl = courier.awbNumber ? getTrackingUrl(courier.partner, courier.awbNumber) : null;
+  const trackingUrl = courier.trackingId ? getTrackingUrl(courier.partner, courier.trackingId) : null;
+
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-brand-ink/50 mt-1 flex-wrap">
+      <Truck size={12} />
+
+      {courier.partner && (
+        homeUrl ? (
+          
+            href={homeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-semibold text-brand-magenta"
+          >
+            {courier.partner}
+          </a>
+        ) : (
+          <span>{courier.partner}</span>
+        )
+      )}
+
+      {courier.awbNumber && (
+        <>
+          <span>·</span>
+          <span className="text-brand-ink/40">AWB:</span>
+          {awbUrl ? (
+            
+              href={awbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-brand-magenta"
+            >
+              {courier.awbNumber}
+            </a>
+          ) : (
+            <span>{courier.awbNumber}</span>
+          )}
+        </>
+      )}
+
+      {courier.trackingId && (
+        <>
+          <span>·</span>
+          <span className="text-brand-ink/40">Tracking:</span>
+          {trackingUrl ? (
+            
+              href={trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-brand-magenta"
+            >
+              {courier.trackingId}
+            </a>
+          ) : (
+            <span>{courier.trackingId}</span>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function ReviewForm({ order, item, phone, onDone }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -272,12 +375,7 @@ export default function OrdersPage() {
               <span className="font-bold text-brand-ink">{formatINR(o.total)}</span>
             </div>
 
-            {o.courier?.trackingId && (
-              <div className="flex items-center gap-1.5 text-[11px] text-brand-ink/50 mt-1">
-                <Truck size={12} />
-                {o.courier.partner} · {o.courier.trackingId}
-              </div>
-            )}
+            <CourierInfo courier={o.courier} />
 
             <p className="text-[11px] text-brand-ink/40 mt-1.5">
               {new Date(o.createdAt).toLocaleDateString('en-IN', {
