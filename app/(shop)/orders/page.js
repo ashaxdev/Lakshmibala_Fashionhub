@@ -105,7 +105,7 @@ function CourierInfo({ courier }) {
             
              <a href={trackingUrl}
               target="_blank"
-              rel="noopener noreferrer"
+              // rel="noopener noreferrer"
               className="underline font-semibold text-brand-magenta"
             >
               {courier.trackingId}
