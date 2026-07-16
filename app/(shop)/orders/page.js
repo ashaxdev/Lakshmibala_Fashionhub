@@ -101,7 +101,7 @@ function CourierInfo({ courier }) {
         <>
           <span>·</span>
           <span className="text-brand-ink/40">Tracking:</span>
-          {trackingUrl ? (
+          
             
              <a href={trackingUrl}
               target="_blank"
@@ -110,9 +110,7 @@ function CourierInfo({ courier }) {
             >
               {courier.trackingId}
             </a>
-          ) : (
-            <span>{courier.trackingId}</span>
-          )}
+          
         </>
       )}
     </div>
