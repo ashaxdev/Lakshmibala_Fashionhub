@@ -16,6 +16,24 @@ const STATUS_STYLES = {
   returned: 'bg-gray-100 text-gray-700'
 };
 
+function getTrackingUrl(partner, id) {
+  if (!partner || !id) return null;
+  const key = partner.trim().toLowerCase();
+  const map = {
+    delhivery: `https://www.delhivery.com/track/package/${id}`,
+    bluedart: `https://www.bluedart.com/tracking?trackingId=${id}`,
+    'blue dart': `https://www.bluedart.com/tracking?trackingId=${id}`,
+    dtdc: `https://www.dtdc.in/trace.asp?strCnno=${id}`,
+    ecom: `https://ecomexpress.in/tracking/?awb_field=${id}`,
+    'ecom express': `https://ecomexpress.in/tracking/?awb_field=${id}`,
+    xpressbees: `https://www.xpressbees.com/track?awbNo=${id}`,
+    shadowfax: `https://www.shadowfax.in/track/${id}`,
+    ekart: `https://ekartlogistics.com/track/${id}`,
+    'india post': 'https://www.indiapost.gov.in/_layouts/15/dop.portal.tracking/trackconsignment.aspx'
+  };
+  return map[key] || null;
+}
+
 function ReviewForm({ order, item, phone, onDone }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -273,9 +291,33 @@ export default function OrdersPage() {
             </div>
 
             {o.courier?.trackingId && (
-              <div className="flex items-center gap-1.5 text-[11px] text-brand-ink/50 mt-1">
+              <div className="flex items-center gap-1.5 text-[11px] text-brand-ink/50 mt-1 flex-wrap">
                 <Truck size={12} />
-                {o.courier.partner} · {o.courier.trackingId}
+                <span>{o.courier.partner}</span>
+                {o.courier.trackingId && (
+                  <>
+                    <span>·</span>
+                    {(() => {
+                      const id = o.courier.awbNumber || o.courier.trackingId;
+                      const url = getTrackingUrl(o.courier.partner, id);
+                      return url ? (
+                        
+                        <a  href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="underline font-semibold text-brand-magenta"
+                        >
+                          {o.courier.trackingId}
+                        </a>
+                      ) : (
+                        <span>{o.courier.trackingId}</span>
+                      );
+                    })()}
+                  </>
+                )}
+                {o.courier.awbNumber && o.courier.awbNumber !== o.courier.trackingId && (
+                  <span className="text-brand-ink/40">(AWB: {o.courier.awbNumber})</span>
+                )}
               </div>
             )}
 
