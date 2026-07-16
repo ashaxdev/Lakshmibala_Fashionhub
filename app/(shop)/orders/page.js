@@ -157,7 +157,7 @@ function CourierInfo({ courier }) {
       {courier.partner && (
         homeUrl ? (
           
-            href={homeUrl}
+          <a  href={homeUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="underline font-semibold text-brand-magenta"
@@ -175,7 +175,7 @@ function CourierInfo({ courier }) {
           <span className="text-brand-ink/40">AWB:</span>
           {awbUrl ? (
             
-              href={awbUrl}
+             <a href={awbUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="underline font-semibold text-brand-magenta"
@@ -194,7 +194,7 @@ function CourierInfo({ courier }) {
           <span className="text-brand-ink/40">Tracking:</span>
           {trackingUrl ? (
             
-              href={trackingUrl}
+             <a href={trackingUrl}
               target="_blank"
               rel="noopener noreferrer"
               className="underline font-semibold text-brand-magenta"
