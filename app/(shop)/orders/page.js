@@ -34,6 +34,24 @@ function getTrackingUrl(partner, id) {
   return map[key] || null;
 }
 
+function getPartnerHomeUrl(partner) {
+  if (!partner) return null;
+  const key = partner.trim().toLowerCase();
+  const map = {
+    delhivery: 'https://www.delhivery.com/',
+    bluedart: 'https://www.bluedart.com/',
+    'blue dart': 'https://www.bluedart.com/',
+    dtdc: 'https://www.dtdc.in/',
+    ecom: 'https://ecomexpress.in/',
+    'ecom express': 'https://ecomexpress.in/',
+    xpressbees: 'https://www.xpressbees.com/',
+    shadowfax: 'https://www.shadowfax.in/',
+    ekart: 'https://ekartlogistics.com/',
+    'india post': 'https://www.indiapost.gov.in/'
+  };
+  return map[key] || null;
+}
+
 function ReviewForm({ order, item, phone, onDone }) {
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
@@ -121,6 +139,73 @@ function ReviewForm({ order, item, phone, onDone }) {
       >
         {submitting ? 'Submitting…' : 'Submit Review'}
       </button>
+    </div>
+  );
+}
+
+function CourierInfo({ courier }) {
+  if (!courier?.trackingId && !courier?.awbNumber) return null;
+
+  const homeUrl = getPartnerHomeUrl(courier.partner);
+  const awbUrl = courier.awbNumber ? getTrackingUrl(courier.partner, courier.awbNumber) : null;
+  const trackingUrl = courier.trackingId ? getTrackingUrl(courier.partner, courier.trackingId) : null;
+
+  return (
+    <div className="flex items-center gap-1.5 text-[11px] text-brand-ink/50 mt-1 flex-wrap">
+      <Truck size={12} />
+
+      {courier.partner && (
+        homeUrl ? (
+          
+            href={homeUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline font-semibold text-brand-magenta"
+          >
+            {courier.partner}
+          </a>
+        ) : (
+          <span>{courier.partner}</span>
+        )
+      )}
+
+      {courier.awbNumber && (
+        <>
+          <span>·</span>
+          <span className="text-brand-ink/40">AWB:</span>
+          {awbUrl ? (
+            
+              href={awbUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-brand-magenta"
+            >
+              {courier.awbNumber}
+            </a>
+          ) : (
+            <span>{courier.awbNumber}</span>
+          )}
+        </>
+      )}
+
+      {courier.trackingId && (
+        <>
+          <span>·</span>
+          <span className="text-brand-ink/40">Tracking:</span>
+          {trackingUrl ? (
+            
+              href={trackingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline font-semibold text-brand-magenta"
+            >
+              {courier.trackingId}
+            </a>
+          ) : (
+            <span>{courier.trackingId}</span>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -290,36 +375,7 @@ export default function OrdersPage() {
               <span className="font-bold text-brand-ink">{formatINR(o.total)}</span>
             </div>
 
-            {o.courier?.trackingId && (
-              <div className="flex items-center gap-1.5 text-[11px] text-brand-ink/50 mt-1 flex-wrap">
-                <Truck size={12} />
-                <span>{o.courier.partner}</span>
-                {o.courier.trackingId && (
-                  <>
-                    <span>·</span>
-                    {(() => {
-                      const id = o.courier.awbNumber || o.courier.trackingId;
-                      const url = getTrackingUrl(o.courier.partner, id);
-                      return url ? (
-                        
-                        <a  href={url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline font-semibold text-brand-magenta"
-                        >
-                          {o.courier.trackingId}
-                        </a>
-                      ) : (
-                        <span>{o.courier.trackingId}</span>
-                      );
-                    })()}
-                  </>
-                )}
-                {o.courier.awbNumber && o.courier.awbNumber !== o.courier.trackingId && (
-                  <span className="text-brand-ink/40">(AWB: {o.courier.awbNumber})</span>
-                )}
-              </div>
-            )}
+            <CourierInfo courier={o.courier} />
 
             <p className="text-[11px] text-brand-ink/40 mt-1.5">
               {new Date(o.createdAt).toLocaleDateString('en-IN', {
