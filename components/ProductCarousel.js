@@ -56,7 +56,7 @@ export default function ProductTabs({ bestSellers, topSellers, activeSellers }) 
             outlineColor: '#C2185B',
             transition: 'background 0.2s ease',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.background = '#8B1E4F')}
+          onMouseEnter={(e) => (e.currentTarget.style.background = '#C2185B')}
           onMouseLeave={(e) => (e.currentTarget.style.background = '#E91E8C')}
         >
           Shop Now
