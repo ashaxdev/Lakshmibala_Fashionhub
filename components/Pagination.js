@@ -1,4 +1,7 @@
+'use client';
+
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 
 // Builds the page list with ellipses, e.g. [1, '...', 4, 5, 6, '...', 12]
 function getPageNumbers(current, total) {
@@ -22,9 +25,17 @@ function getPageNumbers(current, total) {
 }
 
 export default function Pagination({ currentPage, totalPages, basePath }) {
+  const searchParams = useSearchParams();
+
   if (totalPages <= 1) return null;
 
   const pageNumbers = getPageNumbers(currentPage, totalPages);
+
+  const buildHref = (page) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', page);
+    return `${basePath}?${params.toString()}`;
+  };
 
   const linkStyle = (isActive) => ({
     fontFamily: 'system-ui, sans-serif',
@@ -34,10 +45,10 @@ export default function Pagination({ currentPage, totalPages, basePath }) {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    borderRadius: 2,
-    color: isActive ? '#FBF7F0' : '#2A211C',
-    background: isActive ? '#9E3A1C' : 'transparent',
-    border: isActive ? '1px solid #9E3A1C' : '1px solid #E4D3BF',
+    borderRadius: 999,
+    color: isActive ? '#FFF5F8' : '#8B1E4F',
+    background: isActive ? '#C2478A' : 'transparent',
+    border: isActive ? '1px solid #C2478A' : '1px solid #F0C9D8',
   });
 
   return (
@@ -47,11 +58,7 @@ export default function Pagination({ currentPage, totalPages, basePath }) {
     >
       {/* Prev */}
       {currentPage > 1 ? (
-        <Link
-          href={`${basePath}?page=${currentPage - 1}`}
-          style={linkStyle(false)}
-          aria-label="Previous page"
-        >
+        <Link href={buildHref(currentPage - 1)} style={linkStyle(false)} aria-label="Previous page">
           ‹
         </Link>
       ) : (
@@ -65,14 +72,14 @@ export default function Pagination({ currentPage, totalPages, basePath }) {
         p === '...' ? (
           <span
             key={`ellipsis-${idx}`}
-            style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#8A7B6C', padding: '0 4px' }}
+            style={{ fontFamily: 'system-ui, sans-serif', fontSize: 13, color: '#C2478A', padding: '0 4px' }}
           >
             …
           </span>
         ) : (
           <Link
             key={p}
-            href={`${basePath}?page=${p}`}
+            href={buildHref(p)}
             style={linkStyle(p === currentPage)}
             aria-current={p === currentPage ? 'page' : undefined}
           >
@@ -83,11 +90,7 @@ export default function Pagination({ currentPage, totalPages, basePath }) {
 
       {/* Next */}
       {currentPage < totalPages ? (
-        <Link
-          href={`${basePath}?page=${currentPage + 1}`}
-          style={linkStyle(false)}
-          aria-label="Next page"
-        >
+        <Link href={buildHref(currentPage + 1)} style={linkStyle(false)} aria-label="Next page">
           ›
         </Link>
       ) : (
