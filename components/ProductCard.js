@@ -84,11 +84,11 @@ export default function ProductCard({ product }) {
                 ⭐ <span className="hidden sm:inline">BESTSELLER</span><span className="sm:hidden">BEST</span>
               </span>
             )}
-            {lowStock && (
+            {/* {lowStock && (
               <span className="bg-red-500 text-white text-[9px] sm:text-[10px] font-bold px-1.5 sm:px-2 py-0.5 rounded-full">
                 Only {totalStock} left
               </span>
-            )}
+            )} */}
           </div>
 
           {/* Wishlist — always visible, critical for mobile (no hover state) */}
