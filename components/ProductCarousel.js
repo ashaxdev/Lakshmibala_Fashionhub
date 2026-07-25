@@ -50,14 +50,14 @@ export default function ProductTabs({ bestSellers, topSellers, activeSellers }) 
             letterSpacing: '0.14em',
             textTransform: 'uppercase',
             color: '#FFF5F8',
-            background: '#C2478A',
+            background: '#E91E8C',
             padding: '12px 28px',
             borderRadius: 10,
-            outlineColor: '#8B1E4F',
+            outlineColor: '#C2185B',
             transition: 'background 0.2s ease',
           }}
           onMouseEnter={(e) => (e.currentTarget.style.background = '#8B1E4F')}
-          onMouseLeave={(e) => (e.currentTarget.style.background = '#C2478A')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = '#E91E8C')}
         >
           Shop Now
         </Link>
