@@ -39,6 +39,28 @@ export default function ProductTabs({ bestSellers, topSellers, activeSellers }) 
           <ProductCard key={p._id} product={p} />
         ))}
       </div>
+      <div className="mt-12 flex justify-center">
+        <Link
+          href="/products"
+          className="inline-flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+          style={{
+            fontFamily: 'system-ui, sans-serif',
+            fontSize: 13,
+            letterSpacing: '0.14em',
+            textTransform: 'uppercase',
+            color: '#FFF5F8',
+            background: '#C2478A',
+            padding: '12px 28px',
+            borderRadius: 10,
+            outlineColor: '#8B1E4F',
+            transition: 'background 0.2s ease',
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.background = '#8B1E4F')}
+          onMouseLeave={(e) => (e.currentTarget.style.background = '#C2478A')}
+        >
+          Shop Now
+        </Link>
+      </div>
     </section>
   );
 }
