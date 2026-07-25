@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import ProductCard from './ProductCard';
+import Link from 'next/link';
 
 const TABS = [
   { key: 'best', label: '⭐ Bestsellers' },
