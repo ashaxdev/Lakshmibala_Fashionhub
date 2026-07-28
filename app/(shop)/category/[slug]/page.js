@@ -13,7 +13,6 @@ export default function CategoryPage() {
   const [category, setCategory] = useState(null);
   const [subcategories, setSubcategories] = useState([]);
   const [products, setProducts] = useState([]);
-  const [size, setSize] = useState('');
   const [sort, setSort] = useState('newest');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -34,7 +33,6 @@ export default function CategoryPage() {
       page: String(page),
       limit: String(PAGE_SIZE),
     });
-    if (size) params.set('size', size);
 
     const res = await fetch(`/api/products?${params.toString()}`);
     const data = await res.json();
@@ -50,16 +48,16 @@ export default function CategoryPage() {
     }
 
     setLoading(false);
-  }, [slug, size, sort, page]);
+  }, [slug, sort, page]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Reset to page 1 whenever filters change (but not on page changes themselves)
+  // Reset to page 1 whenever the category or sort changes
   useEffect(() => {
     setPage(1);
-  }, [slug, size, sort]);
+  }, [slug, sort]);
 
   const hasSubcategories = subcategories.length > 0;
 
@@ -101,19 +99,18 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {/* Size filter — only relevant when this category doesn't fan out into subcategories */}
-      {!hasSubcategories && (
-        <Filters
-          sizes={category?.sizes}
-          activeSize={size}
-          onSizeChange={setSize}
-          sort={sort}
-          onSortChange={setSort}
-        />
-      )}
+      {/* Sort control only — size buttons stay hidden everywhere on this page */}
+      <Filters
+        hideSizes
+        sizes={category?.sizes}
+        activeSize=""
+        onSizeChange={() => {}}
+        sort={sort}
+        onSortChange={setSort}
+      />
 
-      {/* Products — always shown; for a category with subcategories this includes
-          products from all of its subcategories too */}
+      {/* Products — always shown, no size filter anywhere on this page.
+          For a category with subcategories this includes products from all of its subcategories too. */}
       {loading ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
           {Array.from({ length: 8 }).map((_, i) => (

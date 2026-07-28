@@ -2,12 +2,13 @@
 
 const FALLBACK_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size'];
 
-export default function Filters({ sizes, activeSize, onSizeChange, sort, onSortChange }) {
+export default function Filters({ sizes, activeSize, onSizeChange, sort, onSortChange, hideSizes = false }) {
   const sizeOptions = sizes?.length ? sizes : FALLBACK_SIZES;
+  const showSizes = !hideSizes && sizeOptions.length > 0;
 
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 py-4">
-      {sizeOptions.length > 0 && (
+      {showSizes && (
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           <span className="text-sm font-medium text-brand-ink/60 shrink-0">Size:</span>
           <button
