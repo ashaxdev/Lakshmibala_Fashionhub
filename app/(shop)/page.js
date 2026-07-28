@@ -26,7 +26,9 @@ async function getData() {
     Review.find({ isApproved: true, isFeatured: true }).populate('product', 'name').limit(10).lean(),
     Reel.find({ isActive: true }).sort({ sortOrder: 1 }).populate('product', 'name slug').limit(10).lean(),
     Combo.find({ isActive: true }).limit(6).lean(),
-    Category.find({ isActive: true }).limit(10).lean(),
+    // Only top-level categories on the homepage — subcategories show up after
+    // clicking into their parent, on the category page itself.
+    Category.find({ isActive: true, parent: null }).sort({ sortOrder: 1, name: 1 }).limit(10).lean(),
   ]);
   return { banners, bestSellers, topSellers, activeSellers, reviews, reels, combos, categories };
 }
@@ -45,7 +47,8 @@ export default async function HomePage() {
       {/* Banner */}
       <BannerCarousel banners={JSON.parse(JSON.stringify(banners))} />
 
-      {/* Shop by Category */}
+      {/* Shop by Category — top-level categories only; a category with subcategories
+          takes the shopper to a subcategory grid, one without goes straight to products */}
 {plainCategories?.length > 0 && (
   <section className="max-w-7xl mx-auto px-4 pt-8 pb-2">
     <h2 className="font-display text-xl font-bold text-brand-ink mb-4 text-center">Shop by Category</h2>
@@ -147,21 +150,6 @@ export default async function HomePage() {
 
       {/* Reels */}
       <ReelsSection reels={JSON.parse(JSON.stringify(reels))} />
-
-      {/* Brand strip */}
-      {/* <section className="bg-gradient-to-br from-brand-magenta to-brand-pink py-10 mt-4">
-        <div className="max-w-3xl mx-auto text-center px-4">
-          <h2 className="font-display text-2xl sm:text-3xl font-bold text-white mb-2">
-            Sivakasi's own clothing store, now online
-          </h2>
-          <p className="text-white/80 text-sm">
-            Women's kurtis, salwar sets, nighties and innerwear — handpicked and shipped across India.
-          </p>
-          <Link href="/category/salwar-set" className="inline-block mt-5 bg-white text-brand-magenta font-bold px-6 py-2.5 rounded-full text-sm hover:bg-white/90 transition-colors">
-            Shop Now
-          </Link>
-        </div>
-      </section> */}
 
     </div>
   );

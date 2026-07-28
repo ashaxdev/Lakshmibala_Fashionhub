@@ -24,18 +24,10 @@ export default function CategoryPage() {
     const catRes = await fetch(`/api/categories/${slug}`);
     const catData = await catRes.json();
     setCategory(catData.category);
+    setSubcategories(catData.subcategories || []);
 
-    const subs = catData.subcategories || [];
-    setSubcategories(subs);
-
-    // Categories with subcategories show a subcategory grid instead of products/sizes
-    if (subs.length > 0) {
-      setProducts([]);
-      setTotalPages(1);
-      setLoading(false);
-      return;
-    }
-
+    // Products for this category always load — the API includes products from
+    // subcategories too, so a parent category page shows everything under it.
     const params = new URLSearchParams({
       category: slug,
       sort,
@@ -89,13 +81,8 @@ export default function CategoryPage() {
         <p className="text-brand-ink/60 text-sm mt-1">{category.description}</p>
       )}
 
-      {loading ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="aspect-[3/4] rounded-xl2 bg-brand-cream animate-pulse" />
-          ))}
-        </div>
-      ) : hasSubcategories ? (
+      {/* Subcategory grid — shown whenever this category has children */}
+      {!loading && hasSubcategories && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
           {subcategories.map((sub) => (
             <Link
@@ -112,32 +99,44 @@ export default function CategoryPage() {
             </Link>
           ))}
         </div>
+      )}
+
+      {/* Size filter — only relevant when this category doesn't fan out into subcategories */}
+      {!hasSubcategories && (
+        <Filters
+          sizes={category?.sizes}
+          activeSize={size}
+          onSizeChange={setSize}
+          sort={sort}
+          onSortChange={setSort}
+        />
+      )}
+
+      {/* Products — always shown; for a category with subcategories this includes
+          products from all of its subcategories too */}
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="aspect-[3/4] rounded-xl2 bg-brand-cream animate-pulse" />
+          ))}
+        </div>
+      ) : products.length === 0 ? (
+        <div className="text-center py-20 text-brand-ink/50">
+          <p>No products found in this category yet.</p>
+        </div>
       ) : (
         <>
-          <Filters
-            sizes={category?.sizes}
-            activeSize={size}
-            onSizeChange={setSize}
-            sort={sort}
-            onSortChange={setSort}
-          />
+          {hasSubcategories && (
+            <h2 className="font-display text-lg font-semibold text-brand-ink mt-8 mb-1">All Products</h2>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+            {products.map((p) => (
+              <ProductCard key={p._id} product={p} />
+            ))}
+          </div>
 
-          {products.length === 0 ? (
-            <div className="text-center py-20 text-brand-ink/50">
-              <p>No products found in this category yet.</p>
-            </div>
-          ) : (
-            <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
-                {products.map((p) => (
-                  <ProductCard key={p._id} product={p} />
-                ))}
-              </div>
-
-              {totalPages > 1 && (
-                <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-              )}
-            </>
+          {totalPages > 1 && (
+            <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
           )}
         </>
       )}

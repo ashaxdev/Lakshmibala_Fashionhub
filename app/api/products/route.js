@@ -16,8 +16,17 @@ export async function GET(req) {
   const categorySlug = searchParams.get('category');
   if (categorySlug) {
     const cat = await Category.findOne({ slug: categorySlug });
-    if (cat) query.category = cat._id;
-    else return NextResponse.json({ products: [], total: 0 });
+    if (cat) {
+      // Include products tagged to this category AND to any of its subcategories,
+      // so a parent category page shows all products under it, not just ones
+      // tagged directly to the parent.
+      const subcategoryIds = await Category.find({ parent: cat._id }).distinct('_id');
+      query.category = subcategoryIds.length
+        ? { $in: [cat._id, ...subcategoryIds] }
+        : cat._id;
+    } else {
+      return NextResponse.json({ products: [], total: 0 });
+    }
   }
 
   const size = searchParams.get('size');
