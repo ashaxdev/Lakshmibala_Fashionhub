@@ -4,6 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { Play, Instagram, ShoppingBag, X, Volume2, VolumeX } from 'lucide-react';
 
+const CARD_WIDTH = 130; // px — small reel card width
+const MODAL_WIDTH = 280; // px — player box width
+
 export default function ReelsSection({ reels }) {
   const [activeReel, setActiveReel] = useState(null);
   const [muted, setMuted] = useState(true);
@@ -30,7 +33,8 @@ export default function ReelsSection({ reels }) {
           <div
             key={reel._id}
             onClick={() => setActiveReel(reel)}
-            className="relative min-w-[145px] sm:min-w-[175px] aspect-[9/16] rounded-2xl overflow-hidden shrink-0 group shadow-md cursor-pointer bg-brand-cream"
+            className="relative rounded-2xl overflow-hidden shrink-0 group shadow-md cursor-pointer bg-brand-cream"
+            style={{ width: CARD_WIDTH, aspectRatio: '9 / 16', flexShrink: 0 }}
           >
             {reel.videoUrl ? (
               <video
@@ -41,35 +45,37 @@ export default function ReelsSection({ reels }) {
                 muted
                 playsInline
                 preload="metadata"
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                className="group-hover:scale-105 transition-transform duration-500"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
             ) : (
               <img
                 src={reel.thumbnail || '/placeholder.png'}
                 alt={reel.title || 'Reel'}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                className="group-hover:scale-105 transition-transform duration-500"
+                style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
               />
             )}
 
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/20 pointer-events-none" />
 
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                <Play size={16} className="fill-brand-magenta text-brand-magenta ml-0.5" />
+              <div className="w-9 h-9 bg-white/90 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <Play size={14} className="fill-brand-magenta text-brand-magenta ml-0.5" />
               </div>
             </div>
 
-            <div className="absolute bottom-0 inset-x-0 p-2.5">
+            <div className="absolute bottom-0 inset-x-0 p-2">
               {reel.product?.name && (
-                <p className="text-white text-[11px] font-medium line-clamp-1 mb-1.5">{reel.product.name}</p>
+                <p className="text-white text-[10px] font-medium line-clamp-1 mb-1">{reel.product.name}</p>
               )}
               {reel.product?.slug && (
                 <Link
                   href={`/product/${reel.product.slug}`}
                   onClick={(e) => e.stopPropagation()}
-                  className="flex items-center justify-center gap-1 w-full bg-white text-brand-magenta text-[11px] font-bold py-1.5 rounded-lg hover:bg-brand-magenta hover:text-white transition-colors"
+                  className="flex items-center justify-center gap-1 w-full bg-white text-brand-magenta text-[10px] font-bold py-1 rounded-lg hover:bg-brand-magenta hover:text-white transition-colors"
                 >
-                  <ShoppingBag size={11} /> Shop
+                  <ShoppingBag size={10} /> Shop
                 </Link>
               )}
             </div>
@@ -84,7 +90,8 @@ export default function ReelsSection({ reels }) {
           onClick={() => setActiveReel(null)}
         >
           <div
-            className="relative w-[280px] aspect-[9/16] rounded-2xl overflow-hidden bg-black shadow-2xl"
+            className="relative rounded-2xl overflow-hidden bg-black shadow-2xl"
+            style={{ width: MODAL_WIDTH, aspectRatio: '9 / 16' }}
             onClick={(e) => e.stopPropagation()}
           >
             <video
@@ -96,7 +103,13 @@ export default function ReelsSection({ reels }) {
               muted={muted}
               playsInline
               controls={false}
-              className="absolute inset-0 w-full h-full object-cover"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
             />
 
             <button
