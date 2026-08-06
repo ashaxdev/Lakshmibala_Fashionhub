@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Plus, Trash2, X, Upload, Loader2, Video } from 'lucide-react';
+import { Plus, Trash2, Pencil, X, Upload, Loader2, Video } from 'lucide-react';
 
 const emptyForm = { title: '', videoUrl: '', thumbnail: '', instagramLink: '', product: '', sortOrder: 0 };
 
@@ -11,43 +11,44 @@ function UploadSlot({ value, accept, folder, placeholder, icon: Icon, preview: P
   const fileRef = useRef();
 
   async function handleFile(e) {
-  const file = e.target.files?.[0];
-  if (!file) return;
-  setUploading(true);
-  try {
-    // 1. Get a signature from our own server (tiny request, no file bytes)
-    const sigRes = await fetch('/api/upload/signature', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ folder }),
-    });
-    if (!sigRes.ok) throw new Error('Could not get upload signature');
-    const { timestamp, signature, apiKey, cloudName, folder: signedFolder } = await sigRes.json();
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      // 1. Get a signature from our own server (tiny request, no file bytes)
+      const sigRes = await fetch('/api/upload/signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ folder }),
+      });
+      if (!sigRes.ok) throw new Error('Could not get upload signature');
+      const { timestamp, signature, apiKey, cloudName, folder: signedFolder } = await sigRes.json();
 
-    // 2. Upload the actual file straight to Cloudinary (never touches our server)
-    const resourceType = file.type.startsWith('video') ? 'video' : 'image';
-    const cloudForm = new FormData();
-    cloudForm.append('file', file);
-    cloudForm.append('api_key', apiKey);
-    cloudForm.append('timestamp', timestamp);
-    cloudForm.append('signature', signature);
-    cloudForm.append('folder', signedFolder);
+      // 2. Upload the actual file straight to Cloudinary (never touches our server)
+      const resourceType = file.type.startsWith('video') ? 'video' : 'image';
+      const cloudForm = new FormData();
+      cloudForm.append('file', file);
+      cloudForm.append('api_key', apiKey);
+      cloudForm.append('timestamp', timestamp);
+      cloudForm.append('signature', signature);
+      cloudForm.append('folder', signedFolder);
 
-    const uploadRes = await fetch(
-      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-      { method: 'POST', body: cloudForm }
-    );
-    const data = await uploadRes.json();
-    if (!uploadRes.ok) throw new Error(data.error?.message || 'Upload failed');
+      const uploadRes = await fetch(
+        `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+        { method: 'POST', body: cloudForm }
+      );
+      const data = await uploadRes.json();
+      if (!uploadRes.ok) throw new Error(data.error?.message || 'Upload failed');
 
-    onChange(data.secure_url);
-    toast.success('Uploaded');
-  } catch (err) {
-    toast.error(err.message);
-  } finally {
-    setUploading(false);
+      onChange(data.secure_url);
+      toast.success('Uploaded');
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setUploading(false);
+    }
   }
-}
+
   return (
     <div className="space-y-1">
       {/* Click area */}
@@ -95,6 +96,8 @@ export default function AdminReelsPage() {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(emptyForm);
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null); // null = creating, string = editing that reel
+  const [saving, setSaving] = useState(false);
 
   async function load() {
     const [r1, r2] = await Promise.all([fetch('/api/reels?all=true'), fetch('/api/products?limit=200')]);
@@ -103,14 +106,63 @@ export default function AdminReelsPage() {
   }
   useEffect(() => { load(); }, []);
 
-  function closeForm() { setShowForm(false); setForm(emptyForm); }
+  function closeForm() {
+    setShowForm(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  }
+
+  function openCreate() {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowForm(true);
+  }
+
+  function openEdit(reel) {
+    setEditingId(reel._id);
+    setForm({
+      title: reel.title || '',
+      videoUrl: reel.videoUrl || '',
+      thumbnail: reel.thumbnail || '',
+      instagramLink: reel.instagramLink || '',
+      product: reel.product?._id || reel.product || '',
+      sortOrder: reel.sortOrder ?? 0,
+    });
+    setShowForm(true);
+  }
 
   async function submit(e) {
     e.preventDefault();
     if (!form.videoUrl) { toast.error('Please upload a video'); return; }
     const payload = { ...form, product: form.product || null };
-    const res = await fetch('/api/reels', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    if (res.ok) { toast.success('Reel added'); closeForm(); load(); }
+
+    setSaving(true);
+    try {
+      const res = editingId
+        ? await fetch(`/api/reels/${editingId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+        : await fetch('/api/reels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+
+      if (res.ok) {
+        toast.success(editingId ? 'Reel updated' : 'Reel added');
+        closeForm();
+        load();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        toast.error(data.error || 'Save failed');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Save failed');
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function remove(id) {
@@ -123,7 +175,7 @@ export default function AdminReelsPage() {
     <div>
       <div className="flex items-center justify-between mb-5">
         <h1 className="font-display text-2xl font-bold text-brand-magenta">Shop by Reels</h1>
-        <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-1 text-sm">
+        <button onClick={openCreate} className="btn-primary flex items-center gap-1 text-sm">
           <Plus size={16} /> Add Reel
         </button>
       </div>
@@ -131,7 +183,7 @@ export default function AdminReelsPage() {
       {showForm && (
         <form onSubmit={submit} className="card-soft p-5 mb-6 space-y-3">
           <div className="flex justify-between">
-            <h2 className="font-semibold">New Reel</h2>
+            <h2 className="font-semibold">{editingId ? 'Edit Reel' : 'New Reel'}</h2>
             <button type="button" onClick={closeForm}><X size={18} /></button>
           </div>
 
@@ -162,11 +214,19 @@ export default function AdminReelsPage() {
           </div>
 
           <input
+            placeholder="Title (optional)"
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+            value={form.title}
+            onChange={(e) => setForm({ ...form, title: e.target.value })}
+          />
+
+          <input
             placeholder="Instagram reel link"
             className="w-full border rounded-lg px-3 py-2 text-sm"
             value={form.instagramLink}
             onChange={(e) => setForm({ ...form, instagramLink: e.target.value })}
           />
+
           <select
             className="w-full border rounded-lg px-3 py-2 text-sm"
             value={form.product}
@@ -176,7 +236,17 @@ export default function AdminReelsPage() {
             {products.map((p) => <option key={p._id} value={p._id}>{p.name}</option>)}
           </select>
 
-          <button className="btn-primary text-sm">Create</button>
+          <input
+            type="number"
+            placeholder="Sort order"
+            className="w-full border rounded-lg px-3 py-2 text-sm"
+            value={form.sortOrder}
+            onChange={(e) => setForm({ ...form, sortOrder: Number(e.target.value) })}
+          />
+
+          <button disabled={saving} className="btn-primary text-sm disabled:opacity-60">
+            {saving ? 'Saving…' : editingId ? 'Update' : 'Create'}
+          </button>
         </form>
       )}
 
@@ -194,7 +264,14 @@ export default function AdminReelsPage() {
             </div>
             <div className="p-2 flex items-center justify-between">
               <p className="text-xs line-clamp-1">{r.product?.name || r.title || 'Reel'}</p>
-              <button onClick={() => remove(r._id)} className="text-brand-magenta"><Trash2 size={14} /></button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button onClick={() => openEdit(r)} className="text-brand-ink/60 hover:text-brand-magenta">
+                  <Pencil size={14} />
+                </button>
+                <button onClick={() => remove(r._id)} className="text-brand-magenta">
+                  <Trash2 size={14} />
+                </button>
+              </div>
             </div>
           </div>
         ))}
