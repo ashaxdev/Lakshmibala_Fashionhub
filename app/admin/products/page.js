@@ -1,31 +1,52 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Plus, Pencil, Trash2 } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 
+const PAGE_SIZE = 20;
+
 export default function AdminProductsPage() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
-    const res = await fetch('/api/products?limit=100');
+    const params = new URLSearchParams({ page: String(page), limit: String(PAGE_SIZE) });
+    const res = await fetch(`/api/admin/products?${params.toString()}`);
     const data = await res.json();
     setProducts(data.products || []);
-    setLoading(false);
-  }
 
-  useEffect(() => { load(); }, []);
+    // Support either { total, limit } or a direct { pages } from the API
+    if (typeof data.pages === 'number') {
+      setTotalPages(Math.max(1, data.pages));
+    } else if (typeof data.total === 'number') {
+      setTotalPages(Math.max(1, Math.ceil(data.total / PAGE_SIZE)));
+    } else {
+      setTotalPages(1);
+    }
+
+    setLoading(false);
+  }, [page]);
+
+  useEffect(() => { load(); }, [load]);
 
   async function remove(id) {
     if (!confirm('Delete this product?')) return;
     const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
     if (res.ok) {
       toast.success('Product deleted');
-      load();
+      // If we just deleted the last item on this page (and it's not page 1),
+      // step back a page so we don't land on an empty page.
+      if (products.length === 1 && page > 1) {
+        setPage((p) => p - 1);
+      } else {
+        load();
+      }
     } else toast.error('Failed to delete');
   }
 
@@ -74,6 +95,91 @@ export default function AdminProductsPage() {
           {products.length === 0 && <p className="text-center text-brand-ink/40 py-10">No products yet. Add your first product!</p>}
         </div>
       )}
+
+      {!loading && totalPages > 1 && (
+        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
+      )}
     </div>
   );
+}
+
+function Pagination({ page, totalPages, onPageChange }) {
+  const goTo = (p) => {
+    const clamped = Math.min(Math.max(p, 1), totalPages);
+    if (clamped !== page) {
+      onPageChange(clamped);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const pageNumbers = getPageNumbers(page, totalPages);
+
+  return (
+    <nav className="flex items-center justify-center gap-1 mt-6" aria-label="Pagination">
+      <button
+        onClick={() => goTo(page - 1)}
+        disabled={page === 1}
+        className="px-3 py-2 rounded-lg text-sm font-medium text-brand-ink/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-cream transition-colors"
+        aria-label="Previous page"
+      >
+        Prev
+      </button>
+
+      {pageNumbers.map((p, i) =>
+        p === '...' ? (
+          <span key={`ellipsis-${i}`} className="px-2 text-brand-ink/40">
+            …
+          </span>
+        ) : (
+          <button
+            key={p}
+            onClick={() => goTo(p)}
+            aria-current={p === page ? 'page' : undefined}
+            className={`min-w-9 h-9 px-2 rounded-lg text-sm font-medium transition-colors ${
+              p === page ? 'bg-brand-magenta text-white' : 'text-brand-ink/70 hover:bg-brand-cream'
+            }`}
+          >
+            {p}
+          </button>
+        )
+      )}
+
+      <button
+        onClick={() => goTo(page + 1)}
+        disabled={page === totalPages}
+        className="px-3 py-2 rounded-lg text-sm font-medium text-brand-ink/70 disabled:opacity-30 disabled:cursor-not-allowed hover:bg-brand-cream transition-colors"
+        aria-label="Next page"
+      >
+        Next
+      </button>
+    </nav>
+  );
+}
+
+// Builds a compact page list like: 1 ... 4 5 [6] 7 8 ... 12
+function getPageNumbers(current, total) {
+  const delta = 1;
+  const range = [];
+  const rangeWithDots = [];
+  let last;
+
+  for (let i = 1; i <= total; i++) {
+    if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+      range.push(i);
+    }
+  }
+
+  for (const i of range) {
+    if (last) {
+      if (i - last === 2) {
+        rangeWithDots.push(last + 1);
+      } else if (i - last > 2) {
+        rangeWithDots.push('...');
+      }
+    }
+    rangeWithDots.push(i);
+    last = i;
+  }
+
+  return rangeWithDots;
 }
