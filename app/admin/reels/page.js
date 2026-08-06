@@ -11,25 +11,43 @@ function UploadSlot({ value, accept, folder, placeholder, icon: Icon, preview: P
   const fileRef = useRef();
 
   async function handleFile(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append('file', file);
-      fd.append('folder', folder);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Upload failed');
-      onChange(data.url);
-      toast.success('Uploaded');
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setUploading(false);
-    }
-  }
+  const file = e.target.files?.[0];
+  if (!file) return;
+  setUploading(true);
+  try {
+    // 1. Get a signature from our own server (tiny request, no file bytes)
+    const sigRes = await fetch('/api/upload/signature', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ folder }),
+    });
+    if (!sigRes.ok) throw new Error('Could not get upload signature');
+    const { timestamp, signature, apiKey, cloudName, folder: signedFolder } = await sigRes.json();
 
+    // 2. Upload the actual file straight to Cloudinary (never touches our server)
+    const resourceType = file.type.startsWith('video') ? 'video' : 'image';
+    const cloudForm = new FormData();
+    cloudForm.append('file', file);
+    cloudForm.append('api_key', apiKey);
+    cloudForm.append('timestamp', timestamp);
+    cloudForm.append('signature', signature);
+    cloudForm.append('folder', signedFolder);
+
+    const uploadRes = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
+      { method: 'POST', body: cloudForm }
+    );
+    const data = await uploadRes.json();
+    if (!uploadRes.ok) throw new Error(data.error?.message || 'Upload failed');
+
+    onChange(data.secure_url);
+    toast.success('Uploaded');
+  } catch (err) {
+    toast.error(err.message);
+  } finally {
+    setUploading(false);
+  }
+}
   return (
     <div className="space-y-1">
       {/* Click area */}
