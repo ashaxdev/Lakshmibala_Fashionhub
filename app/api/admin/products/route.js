@@ -6,7 +6,7 @@ import Product from '@/models/Product';
 import Category from '@/models/Category';
 import { requireAdmin } from '@/lib/apiAuth';
 
-// GET /api/admin/products?category=slug&sort=newest&page=1&limit=20
+// GET /api/admin/products?category=slug&sort=newest&page=1&limit=1000
 // Admin-only: returns ALL products (active + hidden), unlike the public
 // /api/products route which only ever returns active ones.
 export const GET = requireAdmin(async (req) => {
@@ -37,7 +37,9 @@ export const GET = requireAdmin(async (req) => {
   };
 
   const page = Number(searchParams.get('page') || 1);
-  const limit = Number(searchParams.get('limit') || 24);
+  // Admin-only route, so default to a high limit instead of the
+  // public storefront's page size of 24 — this dropdown needs every product.
+  const limit = Number(searchParams.get('limit') || 1000);
 
   const [products, total] = await Promise.all([
     Product.find(query)

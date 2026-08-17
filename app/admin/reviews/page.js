@@ -18,7 +18,8 @@ export default function AdminReviewsPage() {
     setReviews(data.reviews || []);
   }
   async function loadProducts() {
-    const res = await fetch('/api/products');
+    // admin-only route: returns every product (active + hidden), no pagination cap
+    const res = await fetch('/api/admin/products?limit=1000');
     const data = await res.json();
     setProducts(data.products || []);
   }
