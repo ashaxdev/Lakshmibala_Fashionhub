@@ -17,7 +17,6 @@ export default function CheckoutPage() {
   });
   const [coupon, setCoupon] = useState('');
   const [discount, setDiscount] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('razorpay');
   const [submitting, setSubmitting] = useState(false);
   const [checkingStock, setCheckingStock] = useState(true);
   // Map of "productId-variantId-size" -> { available, reason } for unavailable items
@@ -125,9 +124,10 @@ export default function CheckoutPage() {
 
     setSubmitting(true);
 
-    // Final re-check immediately before submitting. We do NOT auto-fix here —
-    // if anything is unavailable, block and tell the customer exactly what,
-    // same as the inline banners below.
+    // Client-side pre-check for instant feedback. The real, authoritative
+    // check happens server-side inside /api/payment/create-order, which
+    // atomically reserves stock — this call just avoids opening the
+    // payment modal when we already know something's wrong.
     const ok = await runStockCheck();
     if (!ok) {
       toast.error('Some items in your cart are unavailable. Please remove or adjust them before checking out.');
@@ -136,88 +136,78 @@ export default function CheckoutPage() {
     }
 
     const orderItems = items.map((i) => ({
-      productId: i.productId, variantId: i.variantId, size: i.size, qty: i.qty
+      productId: i.productId, variantId: i.variantId, size: i.size, qty: i.qty,
+      isCombo: i.isCombo || false, comboId: i.comboId
     }));
 
     try {
-      if (paymentMethod === 'razorpay') {
-        const orderRes = await fetch('/api/payment/create-order', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: total })
-        });
-        const orderData = await orderRes.json();
-        if (!orderRes.ok) {
-          toast.error(orderData.error || 'Payment gateway error');
-          setSubmitting(false);
-          return;
-        }
+      const orderRes = await fetch('/api/payment/create-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: orderItems,
+          customer: { name: form.name, phone: form.phone, email: form.email },
+          shippingAddress: form,
+          couponCode: coupon
+        })
+      });
+      const orderData = await orderRes.json();
 
-        const rzp = new window.Razorpay({
-          key: orderData.keyId,
-          amount: orderData.order.amount,
-          currency: 'INR',
-          name: 'Lakshmibala Clothing Store',
-          order_id: orderData.order.id,
-          prefill: { name: form.name, contact: form.phone, email: form.email },
-          theme: { color: '#C2185B' },
-          handler: async function (response) {
-            const finalRes = await fetch('/api/orders', {
+      if (!orderRes.ok) {
+        if (orderRes.status === 409) {
+          // Stock changed between our pre-check and the reservation attempt.
+          await runStockCheck();
+        }
+        toast.error(orderData.error || 'Payment gateway error');
+        setSubmitting(false);
+        return;
+      }
+
+      const { order: rzpOrder, keyId, dbOrderId } = orderData;
+
+      const rzp = new window.Razorpay({
+        key: keyId,
+        amount: rzpOrder.amount,
+        currency: 'INR',
+        name: 'Lakshmibala Clothing Store',
+        order_id: rzpOrder.id,
+        prefill: { name: form.name, contact: form.phone, email: form.email },
+        theme: { color: '#C2185B' },
+        handler: async function (response) {
+          const finalRes = await fetch('/api/payment/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              dbOrderId,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            })
+          });
+          const finalData = await finalRes.json();
+          if (finalRes.ok) {
+            clearCart();
+            router.push(`/order-success/${finalData.order._id}`);
+          } else {
+            // Payment likely succeeded on Razorpay's side even if this
+            // call failed — the webhook will finalize the order shortly.
+            toast.error(finalData.error || 'Payment received — confirming your order.');
+            router.push('/track-order');
+          }
+          setSubmitting(false);
+        },
+        modal: {
+          ondismiss: () => {
+            fetch('/api/payment/cancel', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                items: orderItems,
-                customer: { name: form.name, phone: form.phone, email: form.email },
-                shippingAddress: form,
-                couponCode: coupon,
-                paymentMethod: 'razorpay',
-                razorpayOrderId: response.razorpay_order_id,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature
-              })
-            });
-            const finalData = await finalRes.json();
-            if (finalRes.ok) {
-              clearCart();
-              router.push(`/order-success/${finalData.order._id}`);
-            } else if (finalRes.status === 409) {
-              // Race condition: passed our pre-check but a concurrent order took the stock.
-              toast.error(finalData.error || 'An item sold out while you were checking out. If you were charged, contact support.');
-              await runStockCheck();
-              router.push('/cart');
-            } else {
-              toast.error(finalData.error || 'Could not save order');
-            }
+              body: JSON.stringify({ dbOrderId })
+            }).catch(() => {});
             setSubmitting(false);
-          },
-          modal: { ondismiss: () => setSubmitting(false) }
-        });
-        rzp.open();
-      } else {
-        const res = await fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            items: orderItems,
-            customer: { name: form.name, phone: form.phone, email: form.email },
-            shippingAddress: form,
-            couponCode: coupon,
-            paymentMethod: 'cod'
-          })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          clearCart();
-          router.push(`/order-success/${data.order._id}`);
-        } else if (res.status === 409) {
-          toast.error(data.error || 'An item sold out while you were checking out.');
-          await runStockCheck();
-          router.push('/cart');
-        } else {
-          toast.error(data.error || 'Could not place order');
+          }
         }
-        setSubmitting(false);
-      }
+      });
+      rzp.open();
     } catch {
       toast.error('Something went wrong. Please try again.');
       setSubmitting(false);
@@ -436,15 +426,7 @@ export default function CheckoutPage() {
           {/* Payment Method */}
           <div className="card-soft p-4 sm:p-5">
             <h2 className="font-semibold text-brand-ink mb-2 text-sm sm:text-base">Payment Method</h2>
-            <label className="flex items-center gap-3 text-sm cursor-pointer">
-              <input
-                type="radio"
-                checked={paymentMethod === 'razorpay'}
-                onChange={() => setPaymentMethod('razorpay')}
-                className="accent-brand-magenta w-4 h-4"
-              />
-              Pay Online (Cards / UPI / Netbanking)
-            </label>
+            <p className="text-sm text-brand-ink/70">Pay Online (Cards / UPI / Netbanking)</p>
           </div>
 
           {/* Place Order CTA */}
@@ -462,8 +444,8 @@ export default function CheckoutPage() {
                   : shippingLoading
                     ? 'Calculating shipping…'
                     : total !== null
-                      ? `Place Order — ${formatINR(total)}`
-                      : 'Place Order'
+                      ? `Pay ${formatINR(total)}`
+                      : 'Proceed to Pay'
             }
           </button>
         </div>

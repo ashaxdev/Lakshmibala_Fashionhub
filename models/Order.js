@@ -9,6 +9,17 @@ const OrderItemSchema = new mongoose.Schema(
     color: String,
     size: String,
     price: Number,
+    qty: Number,
+    isCombo: { type: Boolean, default: false }
+  },
+  { _id: false }
+);
+
+const StockReservationSchema = new mongoose.Schema(
+  {
+    productId: mongoose.Schema.Types.ObjectId,
+    variantId: mongoose.Schema.Types.ObjectId,
+    size: String,
     qty: Number
   },
   { _id: false }
@@ -36,7 +47,8 @@ const OrderSchema = new mongoose.Schema(
     couponCode: { type: String, default: '' },
     shippingFee: { type: Number, default: 0 },
     total: Number,
-    paymentMethod: { type: String, enum: ['razorpay', 'cod'], default: 'razorpay' },
+    // Razorpay is the only payment method now.
+    paymentMethod: { type: String, enum: ['razorpay'], default: 'razorpay' },
     paymentStatus: { type: String, enum: ['pending', 'paid', 'failed', 'refunded'], default: 'pending' },
     razorpayOrderId: String,
     razorpayPaymentId: String,
@@ -50,9 +62,21 @@ const OrderSchema = new mongoose.Schema(
       trackingId: { type: String, default: '' },
       awbNumber: { type: String, default: '' }
     },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    // Set on creation to a short window (~15 min). The cron sweep cancels
+    // and releases stock for any order still 'pending' past this time
+    // (i.e. the customer never completed or abandoned payment cleanly).
+    // Cleared once paymentStatus leaves 'pending'.
+    expiresAt: { type: Date, default: null },
+    // Exact stock deltas reserved for this order, kept separately from
+    // `items` so a webhook or cron job — running long after the original
+    // request — knows precisely what to give back on failure/expiry.
+    stockReservations: { type: [StockReservationSchema], default: [] }
   },
   { timestamps: true }
 );
+
+OrderSchema.index({ razorpayOrderId: 1 }, { unique: true, sparse: true });
+OrderSchema.index({ paymentMethod: 1, paymentStatus: 1, expiresAt: 1 });
 
 export default mongoose.models.Order || mongoose.model('Order', OrderSchema);
