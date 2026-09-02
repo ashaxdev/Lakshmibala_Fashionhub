@@ -3,12 +3,44 @@
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Star, ShoppingBag, Zap, Heart, Share2, ChevronLeft, ChevronRight, Tag, Truck, RotateCcw, Shield } from 'lucide-react';
+import { Star, ShoppingBag, Zap, Heart, Share2, ChevronLeft, ChevronRight, Tag } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 import { useCart } from '@/components/CartContext';
-import ColorSizeSelector from '@/components/ColorSizeSelector';
 import ProductCard from '@/components/ProductCard';
 import toast from 'react-hot-toast';
+
+// Size-only selector (color removed — products no longer differentiate by color on the storefront).
+// If a product happens to have more than one variant (e.g. from bulk upload groupings),
+// this defaults to the first one; sizes shown come from the active variant.
+function SizeSelector({ sizes, activeSize, onSizeChange }) {
+  if (!sizes?.length) return null;
+  return (
+    <div>
+      <p className="text-sm font-medium text-brand-ink/70 mb-2">Select Size</p>
+      <div className="flex flex-wrap gap-2">
+        {sizes.map((s) => {
+          const outOfStock = s.stock <= 0;
+          return (
+            <button
+              key={s.size}
+              disabled={outOfStock}
+              onClick={() => onSizeChange(s.size)}
+              className={`min-w-11 h-11 px-3 rounded-xl border-2 text-sm font-semibold transition-all ${
+                activeSize === s.size
+                  ? 'border-brand-magenta bg-brand-magenta text-white'
+                  : outOfStock
+                  ? 'border-brand-ink/10 text-brand-ink/25 cursor-not-allowed line-through'
+                  : 'border-brand-ink/15 text-brand-ink/80 hover:border-brand-magenta'
+              }`}
+            >
+              {s.size}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 export default function ProductPage() {
   const { slug } = useParams();
@@ -67,7 +99,6 @@ export default function ProductPage() {
       comboId: null,
       name: product.name,
       image: activeVariant.images?.[0],
-      color: activeVariant.color,
       size: activeSize,
       price: activeVariant.price,
       qty,
@@ -83,7 +114,6 @@ export default function ProductPage() {
       comboId: null,
       name: product.name,
       image: activeVariant.images?.[0],
-      color: activeVariant.color,
       size: activeSize,
       price: activeVariant.price,
       qty,
@@ -206,12 +236,10 @@ export default function ProductPage() {
             <p className="text-sm text-brand-ink/60 mt-3">Fabric: <span className="font-medium text-brand-ink">{product.fabric}</span></p>
           )}
 
-          {/* Color + Size */}
+          {/* Size only — color selection removed */}
           <div className="mt-5">
-            <ColorSizeSelector
-              variants={product.variants}
-              activeVariant={activeVariant}
-              onColorChange={(v) => { setActiveVariant(v); setActiveImage(0); setActiveSize(''); }}
+            <SizeSelector
+              sizes={activeVariant?.sizes}
               activeSize={activeSize}
               onSizeChange={setActiveSize}
             />
@@ -242,20 +270,6 @@ export default function ProductPage() {
               <ShoppingBag size={17} /> Add to Cart
             </button>
           </div>
-
-          {/* Trust badges */}
-          {/* <div className="grid grid-cols-3 gap-2 mt-5">
-            {[
-              [Truck, 'Free Delivery'],
-              [RotateCcw, '7-Day Returns'],
-              [Shield, '100% Genuine'],
-            ].map(([Icon, label]) => (
-              <div key={label} className="flex flex-col items-center gap-1 bg-brand-cream/60 rounded-xl py-3 px-1 text-center">
-                <Icon size={18} className="text-brand-magenta" />
-                <p className="text-xs text-brand-ink/60 leading-tight">{label}</p>
-              </div>
-            ))}
-          </div> */}
 
           {/* Description */}
           {product.description && (

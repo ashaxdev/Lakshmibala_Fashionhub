@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 const VariantSchema = new mongoose.Schema(
   {
-    color: { type: String, required: true },
+    color: { type: String, default: '' }, // optional now
     colorHex: { type: String, default: '#000000' },
     images: [{ type: String }],
     price: { type: Number, required: true },
@@ -27,7 +27,7 @@ const ProductSchema = new mongoose.Schema(
     fabric: { type: String, default: '' },
     tags: [{ type: String }],
     variants: [VariantSchema],
-    basePrice: { type: Number, required: true }, // used for listing/sorting
+    basePrice: { type: Number, required: true },
     rating: { type: Number, default: 0 },
     reviewCount: { type: Number, default: 0 },
     isBestSeller: { type: Boolean, default: false },

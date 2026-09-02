@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import toast from 'react-hot-toast';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, UploadCloud } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
 
 const PAGE_SIZE = 20;
@@ -13,6 +13,8 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selected, setSelected] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -21,7 +23,6 @@ export default function AdminProductsPage() {
     const data = await res.json();
     setProducts(data.products || []);
 
-    // Support either { total, limit } or a direct { pages } from the API
     if (typeof data.pages === 'number') {
       setTotalPages(Math.max(1, data.pages));
     } else if (typeof data.total === 'number') {
@@ -35,13 +36,34 @@ export default function AdminProductsPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  function toggleOne(id) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  function toggleAllOnPage() {
+    const pageIds = products.map((p) => p._id);
+    const allSelected = pageIds.every((id) => selected.has(id));
+    setSelected((prev) => {
+      const next = new Set(prev);
+      pageIds.forEach((id) => (allSelected ? next.delete(id) : next.add(id)));
+      return next;
+    });
+  }
+
   async function remove(id) {
-    if (!confirm('Delete this product?')) return;
+    if (!confirm('Delete this product? This also removes its images from storage.')) return;
     const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
     if (res.ok) {
       toast.success('Product deleted');
-      // If we just deleted the last item on this page (and it's not page 1),
-      // step back a page so we don't land on an empty page.
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       if (products.length === 1 && page > 1) {
         setPage((p) => p - 1);
       } else {
@@ -50,11 +72,61 @@ export default function AdminProductsPage() {
     } else toast.error('Failed to delete');
   }
 
+  async function bulkRemove() {
+    const ids = Array.from(selected);
+    if (!ids.length) return;
+    if (!confirm(`Delete ${ids.length} selected product${ids.length > 1 ? 's' : ''}? This also removes their images from storage.`)) return;
+
+    setBulkDeleting(true);
+    try {
+      const res = await fetch('/api/admin/products/bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        toast.success(`Deleted ${data.deletedCount} product${data.deletedCount === 1 ? '' : 's'}`);
+        const deletedOnThisPage = products.filter((p) => ids.includes(p._id)).length;
+        setSelected(new Set());
+        if (deletedOnThisPage >= products.length && page > 1) {
+          setPage((p) => p - 1);
+        } else {
+          load();
+        }
+      } else {
+        toast.error(data.error || 'Bulk delete failed');
+      }
+    } catch {
+      toast.error('Bulk delete failed');
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  const pageIds = products.map((p) => p._id);
+  const allOnPageSelected = pageIds.length > 0 && pageIds.every((id) => selected.has(id));
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
         <h1 className="font-display text-2xl font-bold text-brand-magenta">Products</h1>
-        <Link href="/admin/products/new" className="btn-primary flex items-center gap-1 text-sm"><Plus size={16} /> Add Product</Link>
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <button
+              onClick={bulkRemove}
+              disabled={bulkDeleting}
+              className="flex items-center gap-1 text-sm px-3 py-2 rounded-lg bg-red-600 text-white disabled:opacity-50"
+            >
+              <Trash2 size={16} />
+              {bulkDeleting ? 'Deleting…' : `Delete (${selected.size})`}
+            </button>
+          )}
+          <Link href="/admin/products/bulk" className="btn-outline flex items-center gap-1 text-sm">
+            <UploadCloud size={16} /> Bulk Upload
+          </Link>
+          <Link href="/admin/products/new" className="btn-primary flex items-center gap-1 text-sm"><Plus size={16} /> Add Product</Link>
+        </div>
       </div>
 
       {loading ? (
@@ -64,6 +136,14 @@ export default function AdminProductsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left border-b border-brand-ink/10 text-brand-ink/50">
+                <th className="p-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected}
+                    onChange={toggleAllOnPage}
+                    aria-label="Select all on page"
+                  />
+                </th>
                 <th className="p-3">Product</th>
                 <th className="p-3">Category</th>
                 <th className="p-3">Price</th>
@@ -75,6 +155,14 @@ export default function AdminProductsPage() {
             <tbody>
               {products.map((p) => (
                 <tr key={p._id} className="border-b border-brand-ink/5">
+                  <td className="p-3">
+                    <input
+                      type="checkbox"
+                      checked={selected.has(p._id)}
+                      onChange={() => toggleOne(p._id)}
+                      aria-label={`Select ${p.name}`}
+                    />
+                  </td>
                   <td className="p-3 font-medium">{p.name}</td>
                   <td className="p-3 text-brand-ink/60">{p.category?.name}</td>
                   <td className="p-3">{formatINR(p.basePrice)}</td>
@@ -156,7 +244,6 @@ function Pagination({ page, totalPages, onPageChange }) {
   );
 }
 
-// Builds a compact page list like: 1 ... 4 5 [6] 7 8 ... 12
 function getPageNumbers(current, total) {
   const delta = 1;
   const range = [];

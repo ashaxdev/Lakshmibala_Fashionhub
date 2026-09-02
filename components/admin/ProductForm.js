@@ -8,7 +8,7 @@ import { Plus, Trash2, Upload, Loader2, X } from 'lucide-react';
 const SIZE_OPTIONS = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL', 'Free Size','32','34','36','38','40','75','80','85','90','95','100'];
 
 function emptyVariant() {
-  return { color: '', colorHex: 'hotpink', images: [''], price: '', compareAtPrice: '', sizes: [{ size: 'M', stock: 0, sku: '' }] };
+  return { color: '', images: [''], price: '', compareAtPrice: '', sizes: [{ size: 'M', stock: 0, sku: '' }] };
 }
 
 // Per-slot upload button with preview thumbnail
@@ -37,7 +37,6 @@ function ImageSlot({ value, onChange, onRemove, showRemove }) {
 
   return (
     <div className="flex items-center gap-2 mb-2">
-      {/* Thumbnail or upload trigger */}
       <div
         onClick={() => !uploading && fileRef.current?.click()}
         className="w-12 h-12 rounded-lg border-2 border-dashed border-brand-ink/20 flex items-center justify-center cursor-pointer hover:border-brand-magenta transition-colors overflow-hidden shrink-0 relative bg-brand-cream"
@@ -57,7 +56,6 @@ function ImageSlot({ value, onChange, onRemove, showRemove }) {
       </div>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
 
-      {/* URL input — still editable manually */}
       <input
         placeholder="https://... or click thumbnail to upload"
         className="border rounded-lg px-3 py-2 text-sm flex-1"
@@ -70,46 +68,6 @@ function ImageSlot({ value, onChange, onRemove, showRemove }) {
           <X size={15} />
         </button>
       )}
-    </div>
-  );
-}
-
-// Simple, mobile-responsive color input: just type a color name (e.g. "red",
-// "navy", "hotpink") or a hex code, with a live preview swatch. No popups/modals.
-function ColorPicker({ value, onChange }) {
-  const [isValid, setIsValid] = useState(true);
-
-  function checkValid(val) {
-    if (!val) return true;
-    // The browser will resolve any valid CSS color name or hex into a real color
-    const s = new Option().style;
-    s.color = '';
-    s.color = val;
-    return s.color !== '';
-  }
-
-  function handleChange(e) {
-    const val = e.target.value;
-    onChange(val);
-    setIsValid(checkValid(val));
-  }
-
-  return (
-    <div className="flex items-center gap-2 w-full">
-      <span
-        className="w-10 h-10 rounded-lg border border-black/10 shrink-0"
-        style={{ backgroundColor: isValid ? value : '#fff' }}
-      />
-      <input
-        type="text"
-        autoComplete="off"
-        placeholder="e.g. red, navy, hotpink, #E91E8C"
-        className={`flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm ${
-          value && !isValid ? 'border-red-400' : ''
-        }`}
-        value={value}
-        onChange={handleChange}
-      />
     </div>
   );
 }
@@ -199,6 +157,7 @@ export default function ProductForm({ initial, productId }) {
       ...form,
       variants: form.variants.map((v) => ({
         ...v,
+        color: v.color || '',
         price: Number(v.price),
         compareAtPrice: Number(v.compareAtPrice) || 0,
         images: v.images.filter(Boolean),
@@ -263,7 +222,7 @@ export default function ProductForm({ initial, productId }) {
 
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">Variants (Color, Images, Price & Size Stock)</h2>
+          <h2 className="font-semibold">Variants (Images, Price & Size Stock)</h2>
           <button type="button" onClick={addVariant} className="btn-outline text-sm flex items-center gap-1"><Plus size={16} /> Add Variant</button>
         </div>
 
@@ -277,19 +236,14 @@ export default function ProductForm({ initial, productId }) {
             </div>
 
             <div className="grid sm:grid-cols-2 gap-3 mb-3">
-              <input placeholder="Color name (e.g. Green)" className="border rounded-lg px-3 py-2 text-sm" value={v.color} onChange={(e) => updateVariant(vIdx, 'color', e.target.value)} />
+              <input placeholder="Color (optional)" className="border rounded-lg px-3 py-2 text-sm" value={v.color} onChange={(e) => updateVariant(vIdx, 'color', e.target.value)} />
               <div className="grid grid-cols-2 gap-3">
                 <input placeholder="Price ₹" type="number" className="border rounded-lg px-3 py-2 text-sm" value={v.price} onChange={(e) => updateVariant(vIdx, 'price', e.target.value)} />
                 <input placeholder="Compare-at price ₹" type="number" className="border rounded-lg px-3 py-2 text-sm" value={v.compareAtPrice} onChange={(e) => updateVariant(vIdx, 'compareAtPrice', e.target.value)} />
               </div>
             </div>
 
-            <div className="mb-3">
-              <p className="text-xs font-medium text-brand-ink/60 mb-2">Swatch color</p>
-              <ColorPicker value={v.colorHex} onChange={(hex) => updateVariant(vIdx, 'colorHex', hex)} />
-            </div>
-
-            <p className="text-xs font-medium text-brand-ink/60 mb-2">Images for this colour — click thumbnail to upload</p>
+            <p className="text-xs font-medium text-brand-ink/60 mb-2">Images for this variant — click thumbnail to upload</p>
             {v.images.map((img, imgIdx) => (
               <ImageSlot
                 key={imgIdx}

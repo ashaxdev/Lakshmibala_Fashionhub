@@ -4,6 +4,7 @@ import { dbConnect } from '@/lib/mongodb';
 import Product from '@/models/Product';
 import Review from '@/models/Review';
 import { requireAdmin } from '@/lib/apiAuth';
+import { deleteProductImagesFromR2 } from '@/lib/deleteProductImages';
 
 function getFilter(id) {
   return mongoose.isValidObjectId(id) ? { _id: id } : { slug: id };
@@ -48,6 +49,18 @@ export const PUT = requireAdmin(async (req, { params }) => {
 
 export const DELETE = requireAdmin(async (req, { params }) => {
   await dbConnect();
-  await Product.findOneAndDelete(getFilter(params.id));
+
+  const product = await Product.findOne(getFilter(params.id));
+  if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+
+  // Best-effort R2 cleanup — a storage hiccup shouldn't block the DB delete
+  try {
+    await deleteProductImagesFromR2(product);
+  } catch (err) {
+    console.error('R2 image cleanup failed:', err);
+  }
+
+  await Product.findByIdAndDelete(product._id);
+
   return NextResponse.json({ success: true });
 });
