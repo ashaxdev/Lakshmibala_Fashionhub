@@ -15,32 +15,24 @@ function UploadSlot({ value, accept, folder, placeholder, icon: Icon, preview: P
     if (!file) return;
     setUploading(true);
     try {
-      // 1. Get a signature from our own server (tiny request, no file bytes)
-      const sigRes = await fetch('/api/upload/signature', {
+      // 1. Ask our server for a short-lived signed PUT URL (tiny request, no file bytes)
+      const presignRes = await fetch('/api/upload/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ folder }),
+        body: JSON.stringify({ filename: file.name, contentType: file.type, folder }),
       });
-      if (!sigRes.ok) throw new Error('Could not get upload signature');
-      const { timestamp, signature, apiKey, cloudName, folder: signedFolder } = await sigRes.json();
+      if (!presignRes.ok) throw new Error('Could not get upload URL');
+      const { uploadUrl, publicUrl } = await presignRes.json();
 
-      // 2. Upload the actual file straight to Cloudinary (never touches our server)
-      const resourceType = file.type.startsWith('video') ? 'video' : 'image';
-      const cloudForm = new FormData();
-      cloudForm.append('file', file);
-      cloudForm.append('api_key', apiKey);
-      cloudForm.append('timestamp', timestamp);
-      cloudForm.append('signature', signature);
-      cloudForm.append('folder', signedFolder);
+      // 2. Upload the file straight to R2 (never touches our server)
+      const putRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': file.type || 'application/octet-stream' },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error('Upload to storage failed');
 
-      const uploadRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-        { method: 'POST', body: cloudForm }
-      );
-      const data = await uploadRes.json();
-      if (!uploadRes.ok) throw new Error(data.error?.message || 'Upload failed');
-
-      onChange(data.secure_url);
+      onChange(publicUrl);
       toast.success('Uploaded');
     } catch (err) {
       toast.error(err.message);

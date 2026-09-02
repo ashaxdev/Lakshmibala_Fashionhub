@@ -9,14 +9,14 @@
     "seed": "node scripts/seed.js"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.1123.0",
+    "@aws-sdk/client-s3": "^3.1124.0",
     "@aws-sdk/s3-request-presigner": "^3.1123.0",
     "bcryptjs": "2.4.3",
-    "cloudinary": "^2.10.0",
-    "dotenv": "16.4.5",
+    "cloudinary": "^2.11.0",
+    "dotenv": "^16.4.5",
     "jsonwebtoken": "9.0.2",
     "lucide-react": "0.414.0",
-    "mongoose": "8.5.1",
+    "mongoose": "^8.5.1",
     "next": "^14.2.35",
     "papaparse": "5.4.1",
     "razorpay": "2.9.4",
