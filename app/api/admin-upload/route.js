@@ -1,9 +1,12 @@
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { NextResponse } from 'next/server';
 import { randomUUID } from 'crypto';
+import { requireAdmin } from '@/lib/apiAuth';
 import { r2 } from '@/lib/r2Client';
 
-export async function POST(req) {
+// Use this version instead of app/api/upload/route.js if only admins
+// should be able to upload (mirrors your original requireAdmin route).
+export const POST = requireAdmin(async (req) => {
   try {
     const formData = await req.formData();
     const file = formData.get('file');
@@ -13,11 +16,7 @@ export async function POST(req) {
       return NextResponse.json({ error: 'No file' }, { status: 400 });
     }
 
-    // Turn the uploaded File into raw bytes we can send to R2
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // Build a unique storage key so files never overwrite each other.
-    // e.g. "uploads/3f9c1a2b-4d5e-6f7g-photo.jpg"
     const key = `${folder}/${randomUUID()}-${file.name}`;
 
     await r2.send(
@@ -36,4 +35,4 @@ export async function POST(req) {
     console.error('R2 upload failed:', err);
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 });
   }
-}
+});
