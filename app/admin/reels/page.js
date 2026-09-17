@@ -6,6 +6,12 @@ import { Plus, Trash2, Pencil, X, Upload, Loader2, Video } from 'lucide-react';
 
 const emptyForm = { title: '', videoUrl: '', thumbnail: '', instagramLink: '', product: '', sortOrder: 0 };
 
+// Keep this in sync with MAX_BYTES in app/api/upload/presign/route.js.
+// Checking client-side first means a too-large file fails instantly with
+// a clear message instead of after a wasted presign round-trip that the
+// server would reject anyway.
+const MAX_UPLOAD_BYTES = 200 * 1024 * 1024; // 200MB
+
 function UploadSlot({ value, accept, folder, placeholder, icon: Icon, preview: PreviewComp, onChange }) {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef();
@@ -13,18 +19,37 @@ function UploadSlot({ value, accept, folder, placeholder, icon: Icon, preview: P
   async function handleFile(e) {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    if (file.size > MAX_UPLOAD_BYTES) {
+      toast.error(`File too large. Max ${MAX_UPLOAD_BYTES / (1024 * 1024)}MB`);
+      e.target.value = '';
+      return;
+    }
+
     setUploading(true);
     try {
-      // 1. Ask our server for a short-lived signed PUT URL (tiny request, no file bytes)
+      // 1. Ask our server for a short-lived signed PUT URL (tiny request, no file bytes).
+      // contentLength is pinned into the signature server-side, so the
+      // actual PUT below must match this exact size or R2 will reject it.
       const presignRes = await fetch('/api/upload/presign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name, contentType: file.type, folder }),
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type,
+          contentLength: file.size,
+          folder,
+        }),
       });
-      if (!presignRes.ok) throw new Error('Could not get upload URL');
+      if (!presignRes.ok) {
+        const data = await presignRes.json().catch(() => ({}));
+        throw new Error(data.error || 'Could not get upload URL');
+      }
       const { uploadUrl, publicUrl } = await presignRes.json();
 
-      // 2. Upload the file straight to R2 (never touches our server)
+      // 2. Upload the file straight to R2 (never touches our server).
+      // Don't set Content-Length manually — the browser sets it from the
+      // body automatically, and it must match what was signed above.
       const putRes = await fetch(uploadUrl, {
         method: 'PUT',
         headers: { 'Content-Type': file.type || 'application/octet-stream' },
@@ -38,6 +63,7 @@ function UploadSlot({ value, accept, folder, placeholder, icon: Icon, preview: P
       toast.error(err.message);
     } finally {
       setUploading(false);
+      e.target.value = ''; // allow re-selecting the same file after an error
     }
   }
 
@@ -181,10 +207,10 @@ export default function AdminReelsPage() {
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
-              <p className="text-xs font-medium text-brand-ink/60 mb-1">Video * (.mp4, .mov)</p>
+              <p className="text-xs font-medium text-brand-ink/60 mb-1">Video * (.mp4, .mov, .webm)</p>
               <UploadSlot
                 value={form.videoUrl}
-                accept="video/*"
+                accept="video/mp4,video/webm,video/quicktime"
                 folder="reels/videos"
                 placeholder="Click to upload video"
                 icon={Video}
@@ -196,7 +222,7 @@ export default function AdminReelsPage() {
               <p className="text-xs font-medium text-brand-ink/60 mb-1">Thumbnail image</p>
               <UploadSlot
                 value={form.thumbnail}
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp"
                 folder="reels/thumbnails"
                 placeholder="Click to upload thumbnail"
                 icon={Upload}

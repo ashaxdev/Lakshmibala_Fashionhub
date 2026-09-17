@@ -55,7 +55,7 @@ const getData = unstable_cache(
     }));
   },
   ['homepage-data'],
-  { revalidate: 300, tags: ['homepage', 'banners', 'product-list', 'combos', 'categories'] }
+  { revalidate: 300, tags: ['homepage', 'banners', 'product-list', 'combos', 'categories', 'reels', 'reviews'] }
 );
 
 export default async function HomePage() {
