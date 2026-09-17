@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import mongoose from 'mongoose';
 import { dbConnect } from '@/lib/mongodb';
 import Product from '@/models/Product';
@@ -44,6 +45,14 @@ export const PUT = requireAdmin(async (req, { params }) => {
   const product = await Product.findOneAndUpdate(getFilter(params.id), body, { new: true });
   if (!product) return NextResponse.json({ error: 'Product not found' }, { status: 404 });
 
+  // The product detail page is server-rendered with a long `revalidate`
+  // window (see app/product/[slug]/page.js) so that we don't hit Mongo
+  // on every visit. Since edits should show up immediately rather than
+  // waiting out that window, invalidate its tag explicitly here instead
+  // of shortening the window for everyone.
+  revalidateTag(`product-${product.slug}`);
+  revalidateTag('product-list'); // homepage / listing tabs, if they use this tag
+
   return NextResponse.json({ product });
 });
 
@@ -61,6 +70,9 @@ export const DELETE = requireAdmin(async (req, { params }) => {
   }
 
   await Product.findByIdAndDelete(product._id);
+
+  revalidateTag(`product-${product.slug}`);
+  revalidateTag('product-list');
 
   return NextResponse.json({ success: true });
 });

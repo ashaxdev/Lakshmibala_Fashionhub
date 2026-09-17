@@ -4,6 +4,15 @@ import { useState } from 'react';
 import ProductCard from './ProductCard';
 import Link from 'next/link';
 
+// NOTE on caching: this component itself only receives props, so there
+// is nothing to fix here directly — but make sure whatever *parent*
+// page passes in `bestSellers` / `topSellers` / `activeSellers` fetches
+// them in a server component with a `revalidate` window (and/or
+// `next: { tags: ['product-list'] }` on the fetch), the same way
+// app/product/[slug]/page.js now does. If that parent page instead
+// fetches these lists client-side in a useEffect, you'll get the exact
+// same "Cache Writes" overage on the homepage that the PDP had.
+
 const TABS = [
   { key: 'best', label: '⭐ Bestsellers' },
   { key: 'top',  label: '🔥 Top Sellers' },

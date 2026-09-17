@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { Star, Heart, ShoppingBag, Zap } from 'lucide-react';
 import { formatINR } from '@/lib/utils';
+import { CARD_SIZES } from '@/lib/imageSizes';
 import { useCart } from './CartContext';
 import { useWishlist } from './WhishlistContext';
 import { useState } from 'react';
@@ -68,7 +69,13 @@ export default function ProductCard({ product }) {
             src={image}
             alt={product.name}
             fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            sizes={CARD_SIZES}
+            // Product images are pre-resized + WebP-encoded at upload
+            // time and served from R2 with immutable cache headers, so
+            // there's nothing for Vercel's optimizer to add here — this
+            // keeps card-grid renders (the highest-traffic image usage
+            // on the site) off the Image Optimization bill.
+            unoptimized
             className="object-cover group-hover:scale-105 transition-transform duration-500"
           />
 

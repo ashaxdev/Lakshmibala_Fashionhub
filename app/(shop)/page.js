@@ -1,4 +1,4 @@
-export const dynamic = 'force-dynamic';
+import { unstable_cache } from 'next/cache';
 import { dbConnect } from '@/lib/mongodb';
 import Banner from '@/models/Banner';
 import Product from '@/models/Product';
@@ -16,27 +16,50 @@ import Image from 'next/image';
 import { formatINR } from '@/lib/utils';
 import { Zap, ArrowRight, Tag } from 'lucide-react';
 
-async function getData() {
-  await dbConnect();
-  const [banners, bestSellers, topSellers, activeSellers, reviews, reels, combos, categories] = await Promise.all([
-    Banner.find({ isActive: true }).sort({ sortOrder: 1 }).lean(),
-    Product.find({ isActive: true, isBestSeller: true }).limit(12).lean(),
-    Product.find({ isActive: true, isTopSeller: true }).limit(12).lean(),
-    Product.find({ isActive: true, isActiveSeller: true }).sort({ createdAt: -1 }).limit(12).lean(),
-    Review.find({ isApproved: true, isFeatured: true }).populate('product', 'name').limit(10).lean(),
-    Reel.find({ isActive: true }).sort({ sortOrder: 1 }).populate('product', 'name slug').limit(10).lean(),
-    Combo.find({ isActive: true }).limit(6).lean(),
-    // Only top-level categories on the homepage — subcategories show up after
-    // clicking into their parent, on the category page itself.
-    Category.find({ isActive: true, parent: null }).sort({ sortOrder: 1, name: 1 }).limit(10).lean(),
-  ]);
-  return { banners, bestSellers, topSellers, activeSellers, reviews, reels, combos, categories };
-}
+// This page's content is the same for every visitor and only changes
+// when an admin edits a banner/product/combo/category — so `force-dynamic`
+// (a fresh Mongo hit on every single request) was the single biggest
+// source of DB load and uncached compute on the whole site. Switching to
+// ISR means Vercel serves the cached HTML to everyone and only re-runs
+// getData() at most once per `revalidate` window, or immediately when an
+// admin mutation calls revalidateTag() below.
+export const revalidate = 300; // 5 minutes
+
+// unstable_cache wraps the raw Mongoose calls (which aren't `fetch`, so
+// they don't go through Next's Data Cache automatically) and gives us
+// tags we can invalidate on demand from admin routes, e.g.:
+//   revalidateTag('banners') after a banner is saved/toggled
+//   revalidateTag('product-list') after a product is created/edited (already
+//     wired up in app/api/products/[id]/route.js from the PDP fix)
+//   revalidateTag('combos'), revalidateTag('categories') similarly
+const getData = unstable_cache(
+  async () => {
+    await dbConnect();
+    const [banners, bestSellers, topSellers, activeSellers, reviews, reels, combos, categories] = await Promise.all([
+      Banner.find({ isActive: true }).sort({ sortOrder: 1 }).lean(),
+      Product.find({ isActive: true, isBestSeller: true }).limit(12).lean(),
+      Product.find({ isActive: true, isTopSeller: true }).limit(12).lean(),
+      Product.find({ isActive: true, isActiveSeller: true }).sort({ createdAt: -1 }).limit(12).lean(),
+      Review.find({ isApproved: true, isFeatured: true }).populate('product', 'name').limit(10).lean(),
+      Reel.find({ isActive: true }).sort({ sortOrder: 1 }).populate('product', 'name slug').limit(10).lean(),
+      Combo.find({ isActive: true }).limit(6).lean(),
+      // Only top-level categories on the homepage — subcategories show up after
+      // clicking into their parent, on the category page itself.
+      Category.find({ isActive: true, parent: null }).sort({ sortOrder: 1, name: 1 }).limit(10).lean(),
+    ]);
+
+    // Serialize here (once, inside the cached fn) instead of scattering
+    // JSON.parse(JSON.stringify(...)) calls through the JSX below.
+    return JSON.parse(JSON.stringify({
+      banners, bestSellers, topSellers, activeSellers, reviews, reels, combos, categories,
+    }));
+  },
+  ['homepage-data'],
+  { revalidate: 300, tags: ['homepage', 'banners', 'product-list', 'combos', 'categories'] }
+);
 
 export default async function HomePage() {
   const { banners, bestSellers, topSellers, activeSellers, reviews, reels, combos, categories } = await getData();
-  const plainCombos = JSON.parse(JSON.stringify(combos));
-  const plainCategories = JSON.parse(JSON.stringify(categories));
 
   return (
     <div className="overflow-x-hidden">
@@ -45,15 +68,15 @@ export default async function HomePage() {
       
 
       {/* Banner */}
-      <BannerCarousel banners={JSON.parse(JSON.stringify(banners))} />
+      <BannerCarousel banners={banners} />
 
       {/* Shop by Category — top-level categories only; a category with subcategories
           takes the shopper to a subcategory grid, one without goes straight to products */}
-{plainCategories?.length > 0 && (
+{categories?.length > 0 && (
   <section className="max-w-7xl mx-auto px-4 pt-8 pb-2">
     <h2 className="font-display text-xl font-bold text-brand-ink mb-4 text-center">Shop by Category</h2>
     <div className="flex gap-4 overflow-x-auto no-scrollbar pb-1 justify-center flex-wrap sm:flex-nowrap">
-      {plainCategories.map((c) => (
+      {categories.map((c) => (
         <Link key={c._id} href={`/category/${c.slug}`} className="flex flex-col items-center gap-2 shrink-0 group">
           <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-brand-cream border-2 border-transparent group-hover:border-brand-magenta transition-all shadow-sm">
             {c.image
@@ -70,13 +93,13 @@ export default async function HomePage() {
 
       {/* Product tabs — Bestsellers / Top Sellers / New Arrivals */}
       <ProductTabs
-        bestSellers={JSON.parse(JSON.stringify(bestSellers))}
-        topSellers={JSON.parse(JSON.stringify(topSellers))}
-        activeSellers={JSON.parse(JSON.stringify(activeSellers))}
+        bestSellers={bestSellers}
+        topSellers={topSellers}
+        activeSellers={activeSellers}
       />
 
       {/* Combo Offers */}
-{plainCombos?.length > 0 && (
+{combos?.length > 0 && (
   <section className="py-10 bg-gradient-to-br from-brand-magenta/5 via-white to-brand-pink/5">
     <div className="max-w-7xl mx-auto px-4">
       <div className="flex flex-col items-center text-center mb-6">
@@ -92,7 +115,7 @@ export default async function HomePage() {
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 sm:gap-5">
-        {plainCombos.map((c, idx) => {
+        {combos.map((c, idx) => {
           const savings = c.originalPrice > c.comboPrice ? c.originalPrice - c.comboPrice : 0;
           const pct = c.originalPrice > 0 ? Math.round((savings / c.originalPrice) * 100) : 0;
           const isFeatured = idx === 0;
@@ -146,10 +169,10 @@ export default async function HomePage() {
 )}
 
       {/* Reviews */}
-      <ReviewSection reviews={JSON.parse(JSON.stringify(reviews))} />
+      <ReviewSection reviews={reviews} />
 
       {/* Reels */}
-      <ReelsSection reels={JSON.parse(JSON.stringify(reels))} />
+      <ReelsSection reels={reels} />
 
     </div>
   );
