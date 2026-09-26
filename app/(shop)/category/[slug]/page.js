@@ -14,6 +14,7 @@ export default function CategoryPage() {
   const [subcategories, setSubcategories] = useState([]);
   const [products, setProducts] = useState([]);
   const [sort, setSort] = useState('newest');
+  const [size, setSize] = useState('');        // <-- new
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
@@ -26,8 +27,6 @@ export default function CategoryPage() {
     const subs = catData.subcategories || [];
     setSubcategories(subs);
 
-    // Only load products when this category has NO subcategories.
-    // If it has subcategories, the user must drill into one to see products.
     if (subs.length === 0) {
       const params = new URLSearchParams({
         category: slug,
@@ -35,6 +34,10 @@ export default function CategoryPage() {
         page: String(page),
         limit: String(PAGE_SIZE),
       });
+
+      if (size) {
+        params.set('size', size);             // <-- new
+      }
 
       const res = await fetch(`/api/products?${params.toString()}`);
       const data = await res.json();
@@ -48,22 +51,21 @@ export default function CategoryPage() {
         setTotalPages(1);
       }
     } else {
-      // Has subcategories — no product list on this page.
       setProducts([]);
       setTotalPages(1);
     }
 
     setLoading(false);
-  }, [slug, sort, page]);
+  }, [slug, sort, size, page]);               // <-- added size
 
   useEffect(() => {
     load();
   }, [load]);
 
-  // Reset to page 1 whenever the category or sort changes
+  // Reset to page 1 whenever the category, sort, or size changes
   useEffect(() => {
     setPage(1);
-  }, [slug, sort]);
+  }, [slug, sort, size]);                     // <-- added size
 
   const hasSubcategories = subcategories.length > 0;
 
@@ -85,7 +87,6 @@ export default function CategoryPage() {
         <p className="text-brand-ink/60 text-sm mt-1">{category.description}</p>
       )}
 
-      {/* Subcategory grid — shown whenever this category has children */}
       {!loading && hasSubcategories && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
           {subcategories.map((sub) => (
@@ -105,16 +106,12 @@ export default function CategoryPage() {
         </div>
       )}
 
-      {/* Only render the product listing (with sort control) when there are
-          no subcategories. If there are subcategories, the user picks one
-          above and products show on that subcategory's page instead. */}
       {!hasSubcategories && (
         <>
           <Filters
-            hideSizes
             sizes={category?.sizes}
-            activeSize=""
-            onSizeChange={() => {}}
+            activeSize={size}
+            onSizeChange={setSize}
             sort={sort}
             onSortChange={setSort}
           />
@@ -127,7 +124,7 @@ export default function CategoryPage() {
             </div>
           ) : products.length === 0 ? (
             <div className="text-center py-20 text-brand-ink/50">
-              <p>No products found in this category yet.</p>
+              <p>No products found{size ? ` in size ${size}` : ''} in this category yet.</p>
             </div>
           ) : (
             <>
@@ -145,7 +142,6 @@ export default function CategoryPage() {
         </>
       )}
 
-      {/* Loading skeleton for the subcategory case, so the page doesn't look empty */}
       {loading && hasSubcategories === false && subcategories.length === 0 && category === null && (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-6">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -210,7 +206,6 @@ function Pagination({ page, totalPages, onPageChange }) {
   );
 }
 
-// Builds a compact page list like: 1 ... 4 5 [6] 7 8 ... 12
 function getPageNumbers(current, total) {
   const delta = 1;
   const range = [];
