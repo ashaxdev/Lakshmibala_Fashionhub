@@ -3,6 +3,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import {
   Plus,
   Trash2,
   Pencil,
@@ -14,9 +30,89 @@ import {
   FolderPlus,
   Eye,
   EyeOff,
+  GripVertical,
 } from 'lucide-react';
 
 const emptyForm = { name: '', slug: '', image: '', description: '', sizes: '', parent: '' };
+
+// Same ordering the API uses: sortOrder, then name
+const byOrder = (a, b) =>
+  (a.sortOrder || 0) - (b.sortOrder || 0) || a.name.localeCompare(b.name);
+
+// ---------- Drag & drop helpers (defined outside the page so they don't remount) ----------
+
+// One sortable row. `children` is a function that receives the drag handle element.
+function SortableItem({ id, children }) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    position: 'relative',
+    zIndex: isDragging ? 20 : undefined,
+    opacity: isDragging ? 0.7 : 1,
+  };
+
+  const handle = (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      className="cursor-grab active:cursor-grabbing touch-none text-brand-ink/30 hover:text-brand-magenta shrink-0 p-1"
+      title="Drag to reorder"
+      aria-label="Drag to reorder"
+    >
+      <GripVertical size={18} />
+    </button>
+  );
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {children(handle)}
+    </div>
+  );
+}
+
+// A sortable list of siblings. Calls onReorder(idsInNewOrder) when a drag ends.
+function SortableGroup({ dndId, items, onReorder, children }) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  function handleDragEnd({ active, over }) {
+    if (!over || active.id === over.id) return;
+    const ids = items.map((i) => i._id);
+    const oldIndex = ids.indexOf(active.id);
+    const newIndex = ids.indexOf(over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    onReorder(arrayMove(ids, oldIndex, newIndex));
+  }
+
+  return (
+    <DndContext
+      id={dndId}
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={items.map((i) => i._id)} strategy={verticalListSortingStrategy}>
+        {children}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+// ---------- Page ----------
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState([]); // flat list, includes inactive
@@ -43,6 +139,30 @@ export default function AdminCategoriesPage() {
 
   function toggleExpanded(id) {
     setExpanded((e) => ({ ...e, [id]: !e[id] }));
+  }
+
+  // Save a new order for one sibling group (all top-level, or all children of one parent)
+  async function saveOrder(ids) {
+    const previous = categories;
+
+    // Optimistic update so the row drops into place instantly
+    setCategories((cats) =>
+      cats
+        .map((c) => (ids.includes(c._id) ? { ...c, sortOrder: ids.indexOf(c._id) } : c))
+        .sort(byOrder)
+    );
+
+    try {
+      const res = await fetch('/api/categories/reorder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      setCategories(previous);
+      toast.error('Failed to save order');
+    }
   }
 
   function startEdit(c) {
@@ -245,116 +365,137 @@ export default function AdminCategoriesPage() {
         </form>
       )}
 
-      <div className="space-y-3">
-        {topLevel.map((c) => {
-          const subs = childrenOf(c._id);
-          const isOpen = !!expanded[c._id];
-          return (
-            <div key={c._id} className="card-soft overflow-hidden">
-              <div className="p-4 flex items-center gap-3">
-                {subs.length > 0 ? (
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(c._id)}
-                    className="text-brand-ink/40 shrink-0"
-                    aria-label={isOpen ? 'Collapse' : 'Expand'}
-                  >
-                    {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
-                  </button>
-                ) : (
-                  <span className="w-[18px] shrink-0" />
-                )}
+      <p className="text-xs text-brand-ink/40 mb-3">
+        Drag the handle on the left to set the order. This is the order shown on the storefront.
+      </p>
 
-                <div
-                  className={`w-12 h-12 rounded-full bg-brand-cream overflow-hidden shrink-0 ${
-                    c.isActive ? '' : 'opacity-40'
-                  }`}
-                >
-                  {c.image && <img src={c.image} alt={c.name} className="w-full h-full object-cover" />}
-                </div>
+      <SortableGroup dndId="top-level-categories" items={topLevel} onReorder={saveOrder}>
+        <div className="space-y-3">
+          {topLevel.map((c) => {
+            const subs = childrenOf(c._id);
+            const isOpen = !!expanded[c._id];
+            return (
+              <SortableItem key={c._id} id={c._id}>
+                {(handle) => (
+                  <div className="card-soft overflow-hidden bg-white">
+                    <div className="p-4 flex items-center gap-3">
+                      {handle}
 
-                <div className={`flex-1 ${c.isActive ? '' : 'opacity-40'}`}>
-                  <p className="font-medium">{c.name}</p>
-                  <p className="text-xs text-brand-ink/50">
-                    /{c.slug} {subs.length > 0 && `· ${subs.length} subcategor${subs.length === 1 ? 'y' : 'ies'}`}
-                  </p>
-                </div>
+                      {subs.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(c._id)}
+                          className="text-brand-ink/40 shrink-0"
+                          aria-label={isOpen ? 'Collapse' : 'Expand'}
+                        >
+                          {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                        </button>
+                      ) : (
+                        <span className="w-[18px] shrink-0" />
+                      )}
 
-                {!c.isActive && (
-                  <span className="text-[10px] uppercase tracking-wide bg-brand-ink/10 text-brand-ink/50 px-2 py-0.5 rounded-full">
-                    Inactive
-                  </span>
-                )}
-
-                <button
-                  onClick={() => startNew(c._id)}
-                  className="text-brand-ink/40 p-1"
-                  title="Add subcategory"
-                >
-                  <FolderPlus size={16} />
-                </button>
-                <button
-                  onClick={() => toggleActive(c)}
-                  className="text-brand-ink/40 p-1"
-                  title={c.isActive ? 'Deactivate' : 'Activate'}
-                >
-                  {c.isActive ? <Eye size={16} /> : <EyeOff size={16} />}
-                </button>
-                <button onClick={() => startEdit(c)} className="text-brand-magenta p-1" title="Edit">
-                  <Pencil size={16} />
-                </button>
-                <button onClick={() => remove(c._id)} className="text-brand-magenta p-1" title="Delete">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-
-              {isOpen && subs.length > 0 && (
-                <div className="border-t divide-y divide-brand-ink/5">
-                  {subs.map((sub) => (
-                    <div key={sub._id} className="pl-14 pr-4 py-3 flex items-center gap-3">
                       <div
-                        className={`w-9 h-9 rounded-full bg-brand-cream overflow-hidden shrink-0 ${
-                          sub.isActive ? '' : 'opacity-40'
+                        className={`w-12 h-12 rounded-full bg-brand-cream overflow-hidden shrink-0 ${
+                          c.isActive ? '' : 'opacity-40'
                         }`}
                       >
-                        {sub.image && (
-                          <img src={sub.image} alt={sub.name} className="w-full h-full object-cover" />
-                        )}
+                        {c.image && <img src={c.image} alt={c.name} className="w-full h-full object-cover" />}
                       </div>
-                      <div className={`flex-1 ${sub.isActive ? '' : 'opacity-40'}`}>
-                        <p className="text-sm font-medium">{sub.name}</p>
-                        <p className="text-xs text-brand-ink/50">/{sub.slug}</p>
+
+                      <div className={`flex-1 ${c.isActive ? '' : 'opacity-40'}`}>
+                        <p className="font-medium">{c.name}</p>
+                        <p className="text-xs text-brand-ink/50">
+                          /{c.slug} {subs.length > 0 && `· ${subs.length} subcategor${subs.length === 1 ? 'y' : 'ies'}`}
+                        </p>
                       </div>
-                      {!sub.isActive && (
+
+                      {!c.isActive && (
                         <span className="text-[10px] uppercase tracking-wide bg-brand-ink/10 text-brand-ink/50 px-2 py-0.5 rounded-full">
                           Inactive
                         </span>
                       )}
+
                       <button
-                        onClick={() => toggleActive(sub)}
+                        onClick={() => startNew(c._id)}
                         className="text-brand-ink/40 p-1"
-                        title={sub.isActive ? 'Deactivate' : 'Activate'}
+                        title="Add subcategory"
                       >
-                        {sub.isActive ? <Eye size={16} /> : <EyeOff size={16} />}
+                        <FolderPlus size={16} />
                       </button>
-                      <button onClick={() => startEdit(sub)} className="text-brand-magenta p-1" title="Edit">
+                      <button
+                        onClick={() => toggleActive(c)}
+                        className="text-brand-ink/40 p-1"
+                        title={c.isActive ? 'Deactivate' : 'Activate'}
+                      >
+                        {c.isActive ? <Eye size={16} /> : <EyeOff size={16} />}
+                      </button>
+                      <button onClick={() => startEdit(c)} className="text-brand-magenta p-1" title="Edit">
                         <Pencil size={16} />
                       </button>
-                      <button onClick={() => remove(sub._id)} className="text-brand-magenta p-1" title="Delete">
+                      <button onClick={() => remove(c._id)} className="text-brand-magenta p-1" title="Delete">
                         <Trash2 size={16} />
                       </button>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          );
-        })}
 
-        {topLevel.length === 0 && (
-          <p className="text-sm text-brand-ink/40 text-center py-10">No categories yet. Add one to get started.</p>
-        )}
-      </div>
+                    {isOpen && subs.length > 0 && (
+                      <div className="border-t">
+                        <SortableGroup dndId={`subs-${c._id}`} items={subs} onReorder={saveOrder}>
+                          <div className="divide-y divide-brand-ink/5">
+                            {subs.map((sub) => (
+                              <SortableItem key={sub._id} id={sub._id}>
+                                {(subHandle) => (
+                                  <div className="pl-8 pr-4 py-3 flex items-center gap-3 bg-white">
+                                    {subHandle}
+                                    <div
+                                      className={`w-9 h-9 rounded-full bg-brand-cream overflow-hidden shrink-0 ${
+                                        sub.isActive ? '' : 'opacity-40'
+                                      }`}
+                                    >
+                                      {sub.image && (
+                                        <img src={sub.image} alt={sub.name} className="w-full h-full object-cover" />
+                                      )}
+                                    </div>
+                                    <div className={`flex-1 ${sub.isActive ? '' : 'opacity-40'}`}>
+                                      <p className="text-sm font-medium">{sub.name}</p>
+                                      <p className="text-xs text-brand-ink/50">/{sub.slug}</p>
+                                    </div>
+                                    {!sub.isActive && (
+                                      <span className="text-[10px] uppercase tracking-wide bg-brand-ink/10 text-brand-ink/50 px-2 py-0.5 rounded-full">
+                                        Inactive
+                                      </span>
+                                    )}
+                                    <button
+                                      onClick={() => toggleActive(sub)}
+                                      className="text-brand-ink/40 p-1"
+                                      title={sub.isActive ? 'Deactivate' : 'Activate'}
+                                    >
+                                      {sub.isActive ? <Eye size={16} /> : <EyeOff size={16} />}
+                                    </button>
+                                    <button onClick={() => startEdit(sub)} className="text-brand-magenta p-1" title="Edit">
+                                      <Pencil size={16} />
+                                    </button>
+                                    <button onClick={() => remove(sub._id)} className="text-brand-magenta p-1" title="Delete">
+                                      <Trash2 size={16} />
+                                    </button>
+                                  </div>
+                                )}
+                              </SortableItem>
+                            ))}
+                          </div>
+                        </SortableGroup>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </SortableItem>
+            );
+          })}
+
+          {topLevel.length === 0 && (
+            <p className="text-sm text-brand-ink/40 text-center py-10">No categories yet. Add one to get started.</p>
+          )}
+        </div>
+      </SortableGroup>
     </div>
   );
 }

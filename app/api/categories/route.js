@@ -52,6 +52,10 @@ export const POST = requireAdmin(async (req) => {
     parent = parentDoc._id;
   }
 
-  const category = await Category.create({ ...body, slug, parent });
+  // Put the new category at the end of its sibling group
+  const last = await Category.findOne({ parent }).sort({ sortOrder: -1 }).select('sortOrder');
+  const sortOrder = last ? (last.sortOrder || 0) + 1 : 0;
+
+  const category = await Category.create({ ...body, slug, parent, sortOrder });
   return NextResponse.json({ category }, { status: 201 });
 });

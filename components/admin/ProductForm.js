@@ -171,7 +171,13 @@ export default function ProductForm({ initial, productId }) {
     setSaving(false);
     if (res.ok) {
       toast.success(productId ? 'Product updated' : 'Product created');
-      router.push('/admin/products');
+
+      // Go back to the exact list page (e.g. /admin/products?page=10)
+      const raw = new URLSearchParams(window.location.search).get('returnTo') || '';
+      const returnTo = raw.startsWith('/admin/products') ? raw : '/admin/products';
+
+      router.push(returnTo);
+      router.refresh();
     } else {
       toast.error(data.error || 'Something went wrong');
     }

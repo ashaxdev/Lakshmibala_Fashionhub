@@ -6,25 +6,45 @@ import Product from '@/models/Product';
 import Category from '@/models/Category';
 import { requireAdmin } from '@/lib/apiAuth';
 
-// GET /api/admin/products?category=slug&sort=newest&page=1&limit=1000
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// GET /api/admin/products?category=slug&search=text&sort=newest&page=1&limit=1000
 // Admin-only: returns ALL products (active + hidden), unlike the public
 // /api/products route which only ever returns active ones.
 export const GET = requireAdmin(async (req) => {
   await dbConnect();
   const { searchParams } = new URL(req.url);
+
+  const page = Math.max(1, Number(searchParams.get('page')) || 1);
+  // Admin-only route, so default to a high limit instead of the
+  // public storefront's page size of 24 — other admin dropdowns need every product.
+  const limit = Math.max(1, Number(searchParams.get('limit')) || 1000);
+
   const query = {};
 
+  // Category (by slug); a parent category also includes its subcategories
   const categorySlug = searchParams.get('category');
   if (categorySlug) {
     const cat = await Category.findOne({ slug: categorySlug });
-    if (cat) {
-      const subcategoryIds = await Category.find({ parent: cat._id }).distinct('_id');
-      query.category = subcategoryIds.length
-        ? { $in: [cat._id, ...subcategoryIds] }
-        : cat._id;
-    } else {
-      return NextResponse.json({ products: [], total: 0 });
+    if (!cat) {
+      return NextResponse.json({ products: [], total: 0, page, pages: 0 });
     }
+    const subcategoryIds = await Category.find({ parent: cat._id }).distinct('_id');
+    query.category = subcategoryIds.length
+      ? { $in: [cat._id, ...subcategoryIds] }
+      : cat._id;
+  }
+
+  // Search: every word must match the product name or one of its SKUs
+  const search = (searchParams.get('search') || '').trim();
+  if (search) {
+    query.$and = search
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((term) => {
+        const rx = new RegExp(escapeRegex(term), 'i');
+        return { $or: [{ name: rx }, { 'variants.sizes.sku': rx }] };
+      });
   }
 
   const sort = searchParams.get('sort') || 'newest';
@@ -35,11 +55,6 @@ export const GET = requireAdmin(async (req) => {
     popular: { soldCount: -1 },
     rating: { rating: -1 },
   };
-
-  const page = Number(searchParams.get('page') || 1);
-  // Admin-only route, so default to a high limit instead of the
-  // public storefront's page size of 24 — this dropdown needs every product.
-  const limit = Number(searchParams.get('limit') || 1000);
 
   const [products, total] = await Promise.all([
     Product.find(query)
